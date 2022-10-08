@@ -212,12 +212,45 @@ public:
         m_cols = std::max(m_cols, col + 1);
     }
 
+    // get row and column with index
+    Vector<T> row(size_t i) const {
+        Vector<T> r(m_cols);
+        for (auto j = 0; j < m_cols; ++j) {
+            r[j] = (*this)(i, j);
+        }
+        return r;
+    }
+
+    Vector<T> col(size_t j) const {
+        Vector<T> r(m_rows);
+        for (auto i = 0; i < m_rows; ++i) {
+            r[i] = (*this)(i, j);
+        }
+        return r;
+    }
+
     decltype(auto) data() const { 
         std::vector<T> _values;
         for (auto [_k, _v]: m_data) {
             _values.emplace_back(_v);
         }
         return _values;
+    }
+
+    void append_row(const Vector<T>& v) {
+        assert(v.size() == m_cols);
+        const auto _row = m_rows;
+        for (auto j = 0; j < m_cols; ++j) {
+            (*this)(_row, j) = v[j];
+        }
+    }
+
+    void append_col(const Vector<T>& v) {
+        assert(v.size() == m_rows);
+        const auto _col = m_cols;
+        for (auto i = 0; i < m_rows; ++i) {
+            (*this)(i, _col) = v[i];
+        }
     }
 
     auto rows() const { return m_rows; }
@@ -256,7 +289,7 @@ public:
         for (size_t i = 0; i < m_rows; ++i) {
             for (size_t j = 0; j < other.m_cols; ++j) {
                 for (size_t k = 0; k < m_cols; ++k) {
-                    result(i, j) += (*this)(i, k) * other(k, j);
+                    result(i, j) += (*this).at(i, k) * other.at(k, j);
                 }
             }
         }

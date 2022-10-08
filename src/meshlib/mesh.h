@@ -14,6 +14,11 @@ public:
 
     bool load(const std::string& filename);
 
+    void to_4d();
+    void to_3d();
+
+    // get V^{\hat}^{-1} list, ordered by face index
+    void get_inv_hat(std::vector<MatrixXd>& inv_hat_list) const;
 
 private:
     bool __load_obj(const std::string& filename);
