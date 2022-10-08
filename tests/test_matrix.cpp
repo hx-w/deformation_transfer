@@ -31,7 +31,7 @@ int main() {
     cout << im(2, 0) << " " << im(2, 1) << " " << im(2, 2) << endl;
 
     // test concatenate
-    auto I = indentity(3).slice(0, 3, 0, 2);
+    auto I = Matrix<double>::indentity(3).slice(0, 3, 0, 2);
     cout << I.rows() << " " << I.cols() << endl;
 
     auto m2 = concact_matrices({m, I}, 1);
@@ -41,6 +41,24 @@ int main() {
     cout << m2(1, 0) << " " << m2(1, 1) << " " << m2(1, 2) << " " << m2(1, 3) << " " << m2(1, 4) << endl;
     cout << m2(2, 0) << " " << m2(2, 1) << " " << m2(2, 2) << " " << m2(2, 3) << " " << m2(2, 4) << endl;
 
+    // ===========================
+    Vector<double> v({1, 2, 3});
+    cout << v[0] << " " << v[1] << " " << v[2] << endl;
+
+    auto v2 = v.normalize();
+    cout << v2[0] << " " << v2[1] << " " << v2[2] << endl;
+
+    auto v3 = v2.cross(v);
+    cout << v3[0] << " " << v3[1] << " " << v3[2] << endl << endl;;
+
+
+    auto vm = v.to_matrix(0);
+    cout << vm(0, 0) << " " << vm(1, 0) << " " << vm(2, 0) << endl;
+
+    auto mv = vm.to_vector();
+    cout << mv[0] << " " << mv[1] << " " << mv[2] << endl;
+
+    cout << mx_max(vm) << endl;
 
     return 0;
 }
