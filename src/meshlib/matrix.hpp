@@ -2,6 +2,7 @@
 #ifndef MATRIX_HPP
 #define MATRIX_HPP
 
+#include <map>
 #include <vector>
 #include <cassert>
 #include <cmath>
@@ -11,6 +12,7 @@ namespace MeshLib {
 template <class T> class Vector;
 template <class T> class Matrix;
 
+using TKey = std::pair<size_t, size_t>;
 using MatrixXd = Matrix<double>;
 using MatrixXi = Matrix<int>;
 using VectorXd = Vector<double>;
@@ -153,19 +155,14 @@ class Matrix {
 public:
     Matrix() : m_data() {}
 
-    Matrix(size_t rows, size_t cols) : m_rows(rows), m_cols(cols) {
-        m_data.resize(m_rows * m_cols);
-    }
-
-    Matrix(size_t rows, size_t cols, const T& initial) : m_rows(m_rows), m_cols(m_cols) {
-        m_data.resize(m_rows * m_cols, initial);
-    }
+    Matrix(size_t rows, size_t cols) : m_rows(rows), m_cols(cols) {}
 
     Matrix(std::vector<std::vector<T>> data) : m_rows(data.size()), m_cols(data[0].size()) {
-        m_data.resize(m_rows * m_cols);
+        // m_data: map<std::make_pair, T>
+        // std::make_pair: pair<size_t, size_t>
         for (auto i = 0; i < m_rows; ++i) {
             for (auto j = 0; j < m_cols; ++j) {
-                m_data[i * m_cols + j] = data[i][j];
+                (*this)(i, j) = data[i][j];
             }
         }
     }
@@ -184,17 +181,42 @@ public:
     Matrix(Matrix&& other) : m_rows(other.m_rows), m_cols(other.m_cols), m_data(std::move(other.m_data)) {}
 
     // fetch values
+    const T operator()(size_t row, size_t col) const {
+        if (m_data.find(std::make_pair(row, col)) != m_data.end()) {
+            return m_data.at(std::make_pair(row, col));
+        }
+        return static_cast<T>(0);
+    }
+
     T& operator()(size_t row, size_t col) {
-        assert(row < m_rows && col < m_cols);
-        return m_data[row * m_cols + col];
+        if (m_data.find(std::make_pair(row, col)) != m_data.end()) {
+            return m_data[std::make_pair(row, col)];
+        }
+        m_data[std::make_pair(row, col)] = static_cast<T>(0);
+        return m_data[std::make_pair(row, col)];
     }
 
-    const T& operator()(size_t row, size_t col) const {
-        assert(row < m_rows && col < m_cols);
-        return m_data[row * m_cols + col];
+    // const fetch
+    const T at(size_t row, size_t col) const {
+        if (m_data.find(std::make_pair(row, col)) != m_data.end()) {
+            return m_data.at(std::make_pair(row, col));
+        }
+        return static_cast<T>(0);
     }
 
-    decltype(auto) data() const { return m_data; }
+    void set(size_t row, size_t col, const T& val) {
+        m_data[std::make_pair(row, col)] = val;
+        m_rows = std::max(m_rows, row + 1);
+        m_cols = std::max(m_cols, col + 1);
+    }
+
+    decltype(auto) data() const { 
+        std::vector<T> _values;
+        for (auto [_k, _v]: m_data) {
+            _values.emplace_back(_v);
+        }
+        return _values;
+    }
 
     auto rows() const { return m_rows; }
     auto cols() const { return m_cols; }
@@ -317,7 +339,12 @@ public:
     // to vector only if matrix is 1xN or Nx1
     Vector<T> to_vector() const {
         assert(m_rows == 1 || m_cols == 1);
-        return Vector<T>(m_data);
+        // get all values to vector
+        std::vector<T> _;
+        for (auto& [_k, _v] : m_data) {
+            _.emplace_back(_v);
+        }
+        return Vector<T>(_);
     }
 
     static decltype(auto) indentity(size_t size) {
@@ -331,7 +358,8 @@ public:
 private:
     size_t m_rows;
     size_t m_cols;
-    std::vector<T> m_data;
+    std::map<TKey, T> m_data;
+    // std::vector<T> m_data;
 };
 
 
@@ -358,9 +386,9 @@ decltype(auto) concact_matrices(std::initializer_list<Matrix<T>> matrices, size_
         for (auto i = 0; i < _shape.first; ++i) {
             for (auto j = 0; j < _shape.second; ++j) {
                 if (axis == 0) {
-                    result(i + _last, j) = m(i, j);
+                    result(i + _last, j) = m.at(i, j);
                 } else {
-                    result(i, j + _last) = m(i, j);
+                    result(i, j + _last) = m.at(i, j);
                 }
             }
         }

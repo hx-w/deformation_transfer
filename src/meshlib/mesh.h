@@ -14,6 +14,7 @@ public:
 
     bool load(const std::string& filename);
 
+
 private:
     bool __load_obj(const std::string& filename);
     void __split_words(
