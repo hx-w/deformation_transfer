@@ -173,7 +173,9 @@ public:
         if (this != &other) {
             m_rows = other.m_rows;
             m_cols = other.m_cols;
-            m_data.assign(other.m_data.begin(), other.m_data.end());
+            for (auto [k, v] : other.m_data) {
+                m_data[k] = v;
+            }
         }
         return *this;
     }
@@ -192,7 +194,7 @@ public:
         if (m_data.find(std::make_pair(row, col)) != m_data.end()) {
             return m_data[std::make_pair(row, col)];
         }
-        m_data[std::make_pair(row, col)] = static_cast<T>(0);
+        set(row, col, static_cast<T>(0));
         return m_data[std::make_pair(row, col)];
     }
 
