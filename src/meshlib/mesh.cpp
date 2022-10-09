@@ -26,7 +26,7 @@ bool Mesh::load(const string& filename) {
 
 bool Mesh::__load_obj(const string& filename) {
     using DimXd = vector<double>;
-    using DimXi = vector<int>;
+    using DimXi = vector<size_t>;
     vector<DimXd> _verts;
     vector<DimXi> _faces;
 
@@ -87,7 +87,7 @@ void Mesh::to_4d() {
     }
 
     // change faces to 4d by concat [old_verts_num, m_vertices.rows()) to m_faces by column
-    vector<int> new_verts_idx;
+    vector<size_t> new_verts_idx;
     for (auto i = old_verts_num; i < m_vertices.rows(); ++i) {
         new_verts_idx.emplace_back(i);
     }
@@ -140,7 +140,7 @@ void Mesh::get_inv_hat(vector<MatrixXd>& inv_hat_list) const {
     }
 }
 
-void Mesh::get_triangle_adj(vector<vector<int>>& adj_list) const {
+void Mesh::get_triangle_adj(vector<vector<size_t>>& adj_list) const {
     if (m_faces.cols() != 3) {
         return;
     }
@@ -148,11 +148,11 @@ void Mesh::get_triangle_adj(vector<vector<int>>& adj_list) const {
     adj_list.resize(m_faces.rows());
 
     // edge to triangle idx
-    map<TEdge, vector<int>> edge_to_tri;
+    map<TEdge, vector<size_t>> edge_to_tri;
 
     for (auto i = 0; i < m_faces.rows(); ++i) {
         // sort triangle vertices idx
-        vector<int> _tri{m_faces.at(i, 0), m_faces.at(i, 1), m_faces.at(i, 2)};
+        vector<size_t> _tri{m_faces.at(i, 0), m_faces.at(i, 1), m_faces.at(i, 2)};
         sort(_tri.begin(), _tri.end());
 
         auto e1 = make_pair(_tri[0], _tri[1]);

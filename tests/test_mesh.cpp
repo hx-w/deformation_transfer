@@ -11,7 +11,7 @@ int main() {
     Mesh mesh;
     mesh.load("../static/source_mesh/reference.obj");
 
-    vector<vector<int>> adj_list; // triangle_adj
+    vector<vector<size_t>> adj_list; // triangle_adj
     mesh.get_triangle_adj(adj_list);
 
     mesh.to_4d();

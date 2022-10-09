@@ -15,7 +15,7 @@ template <class T> class Matrix;
 
 using TKey = std::pair<size_t, size_t>;
 using MatrixXd = Matrix<double>;
-using MatrixXi = Matrix<int>;
+using MatrixXi = Matrix<size_t>;
 using VectorXd = Vector<double>;
 using VectorXi = Vector<int>;
 // n_dim vector class with math operators
@@ -23,8 +23,8 @@ template <class T>
 class Vector {
 public:
     Vector() : m_data() {}
-    Vector(int n) : m_data(n) {}
-    Vector(int n, const T& val) : m_data(n, val) {}
+    Vector(size_t n) : m_data(n) {}
+    Vector(size_t n, const T& val) : m_data(n, val) {}
     Vector(const Vector<T>& v) : m_data(v.m_data) {}
     Vector(const std::vector<T>& v) : m_data(v) {}
     Vector(const std::initializer_list<T>& v) : m_data(v) {}
@@ -323,13 +323,8 @@ public:
         Matrix result(m_rows, other.m_cols);
         // m_data: map (i, j) -> value
         // sparse matrix multiplication
-        int count = 0;
         for (auto [_key_f, _val_f] : m_data) {
-            if (count % 5 == 0) {
-                std::cout << "progress: " << count << "/" << m_data.size() << std::endl;
-            }
             auto i = _key_f.first, j = _key_f.second;
-
 // #pragma omp parallel for
 //             for (int idx = 0; idx < other.m_data.size(); ++idx) {
 //                 auto iter = other.m_data.begin();
@@ -341,8 +336,6 @@ public:
             for (auto& [_key_s, _val_s] : other.m_data) {
                 auto p = _key_s.first, q = _key_s.second;
             }
-
-            count++;
         }
         return result;
     }
@@ -375,23 +368,23 @@ public:
     Matrix slice(const std::vector<size_t>& indices, size_t axis) const {
         assert(axis == 0 || axis == 1);
         Matrix result(axis == 0 ? indices.size() : m_rows, axis == 1 ? indices.size() : m_cols);
-        if (axis == 0) {
-            for (auto [_key, _val] : m_data) {
-                auto i = _key.first, j = _key.second;
-                // if i in indices[i]
-                if (std::find(indices.begin(), indices.end(), i) != indices.end()) {
-                    result(i, j) = (*this).at(i, j);
+        map<size_t, size_t> index_map;
+        for (auto i = 0; i < indices.size(); ++i) {
+            index_map[indices[i]] = i;
+        }
+
+        for (auto [_key, _val] : m_data) {
+            auto i = _key.first, j = _key.second;
+            if (std::find(indices.begin(), indices.end(), axis == 0 ? i : j) != indices.end()) {
+                if (axis == 0) {
+                    result(index_map[i], j) = (*this).at(i, j);
                 }
-            }
-        } else {
-            for (auto [_key, _val] : m_data) {
-                auto i = _key.first, j = _key.second;
-                // if i in indices[i]
-                if (std::find(indices.begin(), indices.end(), j) != indices.end()) {
-                    result(i, j) = (*this).at(i, j);
+                else {
+                    result(i, index_map[j]) = (*this).at(i, j);
                 }
             }
         }
+
         return result;
     }
 
