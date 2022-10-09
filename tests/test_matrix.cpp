@@ -68,7 +68,7 @@ int main() {
 
     cout << mx_max(vm) << endl;
 
-
+    MatrixXd::indentity(3).mult(MatrixXd::indentity(3));
 
     return 0;
 }

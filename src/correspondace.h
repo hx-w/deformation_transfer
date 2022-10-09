@@ -52,3 +52,12 @@ void apply_markers(
     MeshLib::Mesh& tgt_mesh,
     const MeshLib::MatrixXi& markers
 );
+
+
+void revert_markers(
+    const MeshLib::MatrixXd& AE,
+    const MeshLib::MatrixXd& X,
+    MeshLib::Mesh& tgt_mesh,
+    const MeshLib::MatrixXi& markers,
+    MeshLib::MatrixXd& X_reverted
+);

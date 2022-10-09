@@ -3,8 +3,11 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <chrono>
+#include <ctime>
 
 #include "correspondace.h"
+#include "meshlib/solver.h"
 
 using namespace std;
 using namespace MeshLib;
@@ -13,6 +16,10 @@ void compute_correspondence(
     Mesh& src_mesh, Mesh& tgt_mesh,
     const MatrixXi& markers, MatrixXi& mappings
 ) {
+    // coffecient
+    auto Wi = 0.001;
+    auto Ws = 1.0;
+
     vector<vector<size_t>> face_adj_list;
     src_mesh.get_triangle_adj(face_adj_list);
 
@@ -31,6 +38,36 @@ void compute_correspondence(
     // substract markers from AE, B
     apply_markers(AEi, Bi, tgt_mesh, markers);
     apply_markers(AEs, Bs, tgt_mesh, markers);
+
+    // ignore AEc
+    auto AE = concact_matrices({AEi * Wi, AEs * Ws}, 0);
+    cout << "AE: " << AE.rows() << " " << AE.cols() << endl;
+
+    // print time now: %H:%M:%S
+    auto now = chrono::system_clock::now();
+    auto in_time_t = chrono::system_clock::to_time_t(now);
+    cout << "start multi: " << ctime(&in_time_t);
+
+    auto AtA = AE.transpose().mult(AE);
+
+    // print time now: %H:%M:%S
+    now = chrono::system_clock::now();
+    in_time_t = chrono::system_clock::to_time_t(now);
+    cout << "end multi: " << ctime(&in_time_t);
+
+    auto LU = Solver(AtA);
+    // print time now: %H:%M:%S
+    now = chrono::system_clock::now();
+    in_time_t = chrono::system_clock::to_time_t(now);
+    cout << "end LU: " << ctime(&in_time_t);
+
+    MatrixXd X;
+    LU.solve(AE.transpose() * Bs, X);
+
+    // print time now: %H:%M:%S
+    now = chrono::system_clock::now();
+    in_time_t = chrono::system_clock::to_time_t(now);
+    cout << "end solving: " << ctime(&in_time_t);
 }
 
 
@@ -118,4 +155,15 @@ void apply_markers(MatrixXd& AE, MatrixXd& B, Mesh& tgt_mesh, const MatrixXi& ma
     cout << "Xm: " << Xm.rows() << " " << Xm.cols() << endl;
 
     B = B - AEm * Xm;
+}
+
+
+void revert_markers(
+    const MatrixXd& AE, 
+    const MatrixXd& X,
+    Mesh& tgt_mesh,
+    const MatrixXi& markers,
+    MatrixXi& X_reverted
+) {
+
 }

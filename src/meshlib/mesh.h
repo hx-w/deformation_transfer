@@ -12,7 +12,9 @@ public:
     Mesh() = default;
     Mesh(const std::string& filename);
 
+    bool save(const std::string& filename);
     bool load(const std::string& filename);
+
 
     void to_4d();
     void to_3d();

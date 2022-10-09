@@ -24,6 +24,29 @@ bool Mesh::load(const string& filename) {
     return false;
 }
 
+bool Mesh::save(const string& filename) {
+    if (filename.find(".obj") == string::npos) {
+        return false;
+    }
+
+    ofstream fout(filename);
+    if (!fout.is_open()) {
+        return false;
+    }
+
+    // only save v and f
+    for (auto i = 0; i < m_vertices.rows(); ++i) {
+        fout << "v " << m_vertices(i, 0) << " " << m_vertices(i, 1) << " " << m_vertices(i, 2) << endl;
+    }
+
+    for (auto i = 0; i < m_faces.rows(); ++i) {
+        fout << "f " << m_faces(i, 0) + 1 << " " << m_faces(i, 1) + 1 << " " << m_faces(i, 2) + 1 << endl;
+    }
+
+    fout.close();
+    return true;
+}
+
 bool Mesh::__load_obj(const string& filename) {
     using DimXd = vector<double>;
     using DimXi = vector<size_t>;
@@ -59,6 +82,7 @@ bool Mesh::__load_obj(const string& filename) {
     m_vertices = MatrixXd(_verts);
     m_faces = MatrixXi(_faces);
 
+    ifs.close();
     return true;
 }
 

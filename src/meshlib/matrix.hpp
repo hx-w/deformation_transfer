@@ -3,21 +3,62 @@
 #define MATRIX_HPP
 
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <cassert>
 #include <cmath>
 #include <algorithm>
 #include <omp.h>
+#include <iostream>
 
 namespace MeshLib {
 template <class T> class Vector;
 template <class T> class Matrix;
 
-using TKey = std::pair<size_t, size_t>;
+// using TKey = std::pair<size_t, size_t>;
 using MatrixXd = Matrix<double>;
 using MatrixXi = Matrix<size_t>;
 using VectorXd = Vector<double>;
 using VectorXi = Vector<int>;
+
+struct TKey {
+    TKey(): first(0), second(0) {}
+    TKey(size_t f, size_t s): first(f), second(s) {}
+
+    // operator <
+    bool operator < (const TKey& rhs) const {
+        if (first < rhs.first) {
+            return true;
+        } else if (first == rhs.first) {
+            return second < rhs.second;
+        } else {
+            return false;
+        }
+    }
+
+    bool operator == (const TKey& rhs) const {
+        return first == rhs.first && second == rhs.second;
+    }
+
+    size_t first;
+    size_t second;
+};
+
+struct _hash {
+    size_t operator()(const TKey& key) const {
+        return std::hash<size_t>()(key.first << 4) ^ std::hash<size_t>()(key.second);
+    }
+};
+
+struct Triplet {
+    Triplet(): row(0), col(0), val(0) {}
+    Triplet(size_t r, size_t c, double v): row(r), col(c), val(v) {}
+
+    size_t row;
+    size_t col;
+    double val;
+};
+
 // n_dim vector class with math operators
 template <class T>
 class Vector {
@@ -156,11 +197,12 @@ class Matrix {
 public:
     Matrix() : m_data() {}
 
-    Matrix(size_t rows, size_t cols) : m_rows(rows), m_cols(cols) {}
+    Matrix(size_t rows, size_t cols) : m_rows(rows), m_cols(cols) {
+        // m_data is unordered_map, initilize with rows slots
+        m_data.reserve(rows);
+    }
 
     Matrix(std::vector<std::vector<T>> data) : m_rows(data.size()), m_cols(data[0].size()) {
-        // m_data: map<std::make_pair, T>
-        // std::make_pair: pair<size_t, size_t>
         for (auto i = 0; i < m_rows; ++i) {
             for (auto j = 0; j < m_cols; ++j) {
                 (*this)(i, j) = data[i][j];
@@ -185,30 +227,30 @@ public:
 
     // fetch values
     const T operator()(size_t row, size_t col) const {
-        if (m_data.find(std::make_pair(row, col)) != m_data.end()) {
-            return m_data.at(std::make_pair(row, col));
+        if (m_data.find(TKey(row, col)) != m_data.end()) {
+            return m_data.at(TKey(row, col));
         }
         return static_cast<T>(0);
     }
 
     T& operator()(size_t row, size_t col) {
-        if (m_data.find(std::make_pair(row, col)) != m_data.end()) {
-            return m_data[std::make_pair(row, col)];
+        if (m_data.find(TKey(row, col)) != m_data.end()) {
+            return m_data[TKey(row, col)];
         }
         set(row, col, static_cast<T>(0));
-        return m_data[std::make_pair(row, col)];
+        return m_data[TKey(row, col)];
     }
 
     // const fetch
     const T at(size_t row, size_t col) const {
-        if (m_data.find(std::make_pair(row, col)) != m_data.end()) {
-            return m_data.at(std::make_pair(row, col));
+        if (m_data.find(TKey(row, col)) != m_data.end()) {
+            return m_data.at(TKey(row, col));
         }
         return static_cast<T>(0);
     }
 
     void set(size_t row, size_t col, const T& val) {
-        m_data[std::make_pair(row, col)] = val;
+        m_data[TKey(row, col)] = val;
         m_rows = std::max(m_rows, row + 1);
         m_cols = std::max(m_cols, col + 1);
     }
@@ -279,7 +321,7 @@ public:
 
     auto rows() const { return m_rows; }
     auto cols() const { return m_cols; }
-    auto shape() const { return std::make_pair(m_rows, m_cols); }
+    auto shape() const { return TKey(m_rows, m_cols); }
     auto shape(size_t dim) const { return dim == 0 ? m_rows : m_cols; }
 
     // addition
@@ -317,13 +359,11 @@ public:
     }
 
     // multiplication
-    // need change to sparse multiplication
     Matrix operator*(const Matrix& other) const {
         assert(m_cols == other.m_rows);
         Matrix result(m_rows, other.m_cols);
-        // m_data: map (i, j) -> value
         // sparse matrix multiplication
-        for (auto [_key_f, _val_f] : m_data) {
+        for (auto& [_key_f, _val_f] : m_data) {
             auto i = _key_f.first, j = _key_f.second;
 // #pragma omp parallel for
 //             for (int idx = 0; idx < other.m_data.size(); ++idx) {
@@ -335,7 +375,50 @@ public:
 //             }
             for (auto& [_key_s, _val_s] : other.m_data) {
                 auto p = _key_s.first, q = _key_s.second;
+                result(i, q) += (*this).at(i, j) * other.at(p, q);
             }
+        }
+        return result;
+    }
+
+    Matrix mult(const Matrix& other) const {
+        assert(m_cols == other.m_rows);
+        Matrix result(m_rows, other.m_cols);
+        std::vector<Triplet> lhs_trips, rhs_trips;
+
+        std::vector<omp_lock_t> locks(result.rows());
+
+        for (auto& [_key, _val] : m_data) {
+            auto i = _key.first, j = _key.second;
+            lhs_trips.emplace_back(Triplet{i, j, _val});
+            omp_init_lock(&locks[i]);
+        }
+
+        for (auto& [_key, _val] : other.m_data) {
+            auto i = _key.first, j = _key.second;
+            rhs_trips.emplace_back(Triplet{i, j, _val});
+        }
+        // sparse matrix multiplication
+// #pragma omp parallel for num_threads(2)
+        for (auto tl = 0; tl < lhs_trips.size(); ++tl) {
+        // for (auto& lhs_trip : lhs_trips) {
+            auto& lhs_trip = lhs_trips[tl];
+            if (tl % 100 == 0) {
+                std::cout << "progress: " << tl * 1.0 / m_data.size() << std::endl;
+            }
+            auto i = lhs_trip.row, j = lhs_trip.col;
+            // omp_set_lock(&locks[i]);
+            // std::cout << "lock " << i << std::endl;
+            for (auto ti = 0; ti < rhs_trips.size(); ++ti) {
+                auto& trip = rhs_trips[ti];
+                auto p = trip.row, q = trip.col;
+                result(i, q) += lhs_trip.val * trip.val;
+            }
+            // omp_unset_lock(&locks[i]);
+        }
+
+        for (auto& lock : locks) {
+            omp_destroy_lock(&lock);
         }
         return result;
     }
@@ -368,7 +451,7 @@ public:
     Matrix slice(const std::vector<size_t>& indices, size_t axis) const {
         assert(axis == 0 || axis == 1);
         Matrix result(axis == 0 ? indices.size() : m_rows, axis == 1 ? indices.size() : m_cols);
-        map<size_t, size_t> index_map;
+        std::map<size_t, size_t> index_map;
         for (auto i = 0; i < indices.size(); ++i) {
             index_map[indices[i]] = i;
         }
@@ -461,7 +544,7 @@ public:
 private:
     size_t m_rows;
     size_t m_cols;
-    std::map<TKey, T> m_data;
+    std::unordered_map<TKey, T, _hash> m_data;
 };
 
 
@@ -470,7 +553,7 @@ private:
 /**
  * concatenate matrices horizontally if axis = 1, vertically if axis = 0
  */
-template <typename T>
+template <class T>
 decltype(auto) concact_matrices(std::initializer_list<Matrix<T>> matrices, int axis) {
     assert(matrices.size() > 0);
     auto new_rc = matrices.begin()->shape();
@@ -480,22 +563,14 @@ decltype(auto) concact_matrices(std::initializer_list<Matrix<T>> matrices, int a
         assert(m.shape(1 - axis) == matrices.begin()->shape(1 - axis));
         (axis == 0 ? new_rc.first : new_rc.second) += m.shape(axis);
     }
-    Matrix<T> result(new_rc.first, new_rc.second);
+    
+    auto result = Matrix<T>(axis == 0 ? 0 : new_rc.first, axis == 0 ? new_rc.second : 0);
 
-    auto _last = 0;
-    for (auto& m: matrices) {
-        auto _shape = m.shape();
-        for (auto i = 0; i < _shape.first; ++i) {
-            for (auto j = 0; j < _shape.second; ++j) {
-                if (axis == 0) {
-                    result(i + _last, j) = m.at(i, j);
-                } else {
-                    result(i, j + _last) = m.at(i, j);
-                }
-            }
-        }
-        _last += (axis == 0 ? _shape.first : _shape.second);
+    for (auto& m : matrices) {
+        result.append(m, axis);
     }
+    // check row and col
+    assert(result.shape(0) == new_rc.first && result.shape(1) == new_rc.second);
 
     return result;
 }
