@@ -20,13 +20,15 @@ public:
     // get V^{\hat}^{-1} list, ordered by face index
     void get_inv_hat(std::vector<MatrixXd>& inv_hat_list) const;
 
-private:
-    bool __load_obj(const std::string& filename);
-    void __split_words(
+    void get_triangle_adj(std::vector<std::vector<int>>& adj_list) const;
+
+    static void split_words(
         const std::string& line,
         std::vector<std::string>& words,
         const char delim
     );
+private:
+    bool __load_obj(const std::string& filename);
 
 private:
     MatrixXd m_vertices;

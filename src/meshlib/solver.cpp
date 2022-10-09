@@ -11,22 +11,35 @@ Solver::Solver(const MatrixXd& A) : _A(A) {
     __lu_decompose();
 }
 
+/**
+ * solve Ax = b
+ * A: shape(m, n) LU decomposed
+ * x: shape(n, k)
+ * b: shape(m, k)
+ */
 void Solver::solve(const MatrixXd& b, MatrixXd& x) {
-    auto n = _A.rows();
-    MatrixXd y(n, 1);
-    for (auto i = 0; i < n; ++i) {
-        y(i, 0) = b(i, 0);
-        for (auto j = 0; j < i; ++j) {
-            y(i, 0) -= _L(i, j) * y(j, 0);
+    // solve Ly = b
+    auto y = MatrixXd(b.rows(), b.cols());
+    for (auto i = 0; i < b.rows(); ++i) {
+        for (auto j = 0; j < b.cols(); ++j) {
+            auto sum = 0.0;
+            for (auto k = 0; k < i; ++k) {
+                sum += _L(i, k) * y(k, j);
+            }
+            y(i, j) = (b(i, j) - sum) / _L(i, i);
+     
         }
     }
-
-    for (int i = n - 1; i >= 0; --i) { // i must be signed int
-        x(i, 0) = y(i, 0);
-        for (auto j = i + 1; j < n; ++j) {
-            x(i, 0) -= _U(i, j) * x(j, 0);
+    // solve Ux = y
+    x = MatrixXd(b.rows(), b.cols());
+    for (int i = b.rows() - 1; i >= 0; --i) { // i must be int
+        for (auto j = 0; j < b.cols(); ++j) {
+            auto sum = 0.0;
+            for (auto k = i + 1; k < b.rows(); ++k) {
+                sum += _U(i, k) * x(k, j);
+            }
+            x(i, j) = (y(i, j) - sum) / _U(i, i);
         }
-        x(i, 0) /= _U(i, i);
     }
 }
 
@@ -67,7 +80,6 @@ void Solver::__lu_decompose() {
     //     }
     //     cout << endl;
     // }
-
 }
 
 }

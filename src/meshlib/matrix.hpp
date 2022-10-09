@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <algorithm>
+#include <omp.h>
 
 namespace MeshLib {
 template <class T> class Vector;
@@ -253,6 +254,29 @@ public:
         }
     }
 
+    // axis = 1: column, axis = 0: row
+    void append(const Matrix<T>& m, int axis) {
+        assert(axis == 0 || axis == 1);
+        if (axis == 0) {
+            auto old_rows = m_rows;
+            assert(m.cols() == m_cols);
+            for (auto [_key, _val] : m.m_data) {
+                auto i = _key.first, j = _key.second;
+                (*this)(i + old_rows, j) = _val;
+            }
+            m_rows = old_rows + m.rows();
+        }
+        else {
+            auto old_cols = m_cols;
+            assert(m.rows() == m_rows);
+            for (auto [_key, _val] : m.m_data) {
+                auto i = _key.first, j = _key.second;
+                (*this)(i, j + old_cols) = _val;
+            }
+            m_cols = old_cols + m.cols();
+        }
+    }
+
     auto rows() const { return m_rows; }
     auto cols() const { return m_cols; }
     auto shape() const { return std::make_pair(m_rows, m_cols); }
@@ -262,10 +286,14 @@ public:
     Matrix operator+(const Matrix& other) const {
         assert(m_rows == other.m_rows && m_cols == other.m_cols);
         Matrix result(m_rows, m_cols);
-        for (size_t i = 0; i < m_rows; ++i) {
-            for (size_t j = 0; j < m_cols; ++j) {
-                result(i, j) = (*this)(i, j) + other(i, j);
-            }
+        for (auto [_key, _val] : m_data) {
+            auto i = _key.first, j = _key.second;
+            result(i, j) = (*this).at(i, j) + other.at(i, j);
+        }
+
+        for (auto [_key, _val] : other.m_data) {
+            auto i = _key.first, j = _key.second;
+            result(i, j) = (*this).at(i, j) + other.at(i, j);
         }
         return result;
     }
@@ -274,24 +302,47 @@ public:
     Matrix operator-(const Matrix& other) const {
         assert(m_rows == other.m_rows && m_cols == other.m_cols);
         Matrix result(m_rows, m_cols);
-        for (size_t i = 0; i < m_rows; ++i) {
-            for (size_t j = 0; j < m_cols; ++j) {
-                result(i, j) = (*this)(i, j) - other(i, j);
-            }
+
+        for (auto [_key, _val] : m_data) {
+            auto i = _key.first, j = _key.second;
+            result(i, j) = (*this).at(i, j) - other.at(i, j);
         }
+
+        for (auto [_key, _val] : other.m_data) {
+            auto i = _key.first, j = _key.second;
+            result(i, j) = (*this).at(i, j) - other.at(i, j);
+        }
+
         return result;
     }
 
     // multiplication
+    // need change to sparse multiplication
     Matrix operator*(const Matrix& other) const {
         assert(m_cols == other.m_rows);
         Matrix result(m_rows, other.m_cols);
-        for (size_t i = 0; i < m_rows; ++i) {
-            for (size_t j = 0; j < other.m_cols; ++j) {
-                for (size_t k = 0; k < m_cols; ++k) {
-                    result(i, j) += (*this).at(i, k) * other.at(k, j);
-                }
+        // m_data: map (i, j) -> value
+        // sparse matrix multiplication
+        int count = 0;
+        for (auto [_key_f, _val_f] : m_data) {
+            if (count % 5 == 0) {
+                std::cout << "progress: " << count << "/" << m_data.size() << std::endl;
             }
+            auto i = _key_f.first, j = _key_f.second;
+
+// #pragma omp parallel for
+//             for (int idx = 0; idx < other.m_data.size(); ++idx) {
+//                 auto iter = other.m_data.begin();
+//                 iter++;
+//                 // auto p = (other.m_data.begin() + idx)->first.first;
+//                 // auto q = (other.m_data.begin() + idx)->first.second;
+//                 // result(i, q) += (*this).at(i, j) * other.at(p, q);
+//             }
+            for (auto& [_key_s, _val_s] : other.m_data) {
+                auto p = _key_s.first, q = _key_s.second;
+            }
+
+            count++;
         }
         return result;
     }
@@ -299,10 +350,9 @@ public:
     // scalar multiplication
     Matrix operator*(const T& scalar) const {
         Matrix result(m_rows, m_cols);
-        for (size_t i = 0; i < m_rows; ++i) {
-            for (size_t j = 0; j < m_cols; ++j) {
-                result(i, j) = (*this)(i, j) * scalar;
-            }
+        for (auto [_key, _val] : m_data) {
+            auto i = _key.first, j = _key.second;
+            result(i, j) = (*this).at(i, j) * scalar;
         }
         return result;
     }
@@ -311,9 +361,35 @@ public:
     Matrix slice(size_t row_start, size_t row_end, size_t col_start, size_t col_end) const {
         assert(row_start < row_end && col_start < col_end);
         Matrix result(row_end - row_start, col_end - col_start);
-        for (size_t i = row_start; i < row_end; ++i) {
-            for (size_t j = col_start; j < col_end; ++j) {
-                result(i - row_start, j - col_start) = (*this)(i, j);
+
+        for (auto [_key, _val] : m_data) {
+            auto i = _key.first, j = _key.second;
+            if (i >= row_start && i < row_end && j >= col_start && j < col_end) {
+                result(i - row_start, j - col_start) = (*this).at(i, j);
+            }
+        }
+        return result;
+    }
+
+    // slice with indices, axis = 1 for column, axis = 0 for row
+    Matrix slice(const std::vector<size_t>& indices, size_t axis) const {
+        assert(axis == 0 || axis == 1);
+        Matrix result(axis == 0 ? indices.size() : m_rows, axis == 1 ? indices.size() : m_cols);
+        if (axis == 0) {
+            for (auto [_key, _val] : m_data) {
+                auto i = _key.first, j = _key.second;
+                // if i in indices[i]
+                if (std::find(indices.begin(), indices.end(), i) != indices.end()) {
+                    result(i, j) = (*this).at(i, j);
+                }
+            }
+        } else {
+            for (auto [_key, _val] : m_data) {
+                auto i = _key.first, j = _key.second;
+                // if i in indices[i]
+                if (std::find(indices.begin(), indices.end(), j) != indices.end()) {
+                    result(i, j) = (*this).at(i, j);
+                }
             }
         }
         return result;
@@ -322,10 +398,9 @@ public:
     // transpose
     Matrix transpose() const {
         Matrix result(m_cols, m_rows);
-        for (size_t i = 0; i < m_rows; ++i) {
-            for (size_t j = 0; j < m_cols; ++j) {
-                result(j, i) = (*this)(i, j);
-            }
+        for (auto [_key, _val] : m_data) {
+            auto i = _key.first, j = _key.second;
+            result(j, i) = (*this).at(i, j);
         }
         return result;
     }
@@ -394,7 +469,6 @@ private:
     size_t m_rows;
     size_t m_cols;
     std::map<TKey, T> m_data;
-    // std::vector<T> m_data;
 };
 
 
@@ -404,7 +478,7 @@ private:
  * concatenate matrices horizontally if axis = 1, vertically if axis = 0
  */
 template <typename T>
-decltype(auto) concact_matrices(std::initializer_list<Matrix<T>> matrices, size_t axis) {
+decltype(auto) concact_matrices(std::initializer_list<Matrix<T>> matrices, int axis) {
     assert(matrices.size() > 0);
     auto new_rc = matrices.begin()->shape();
     axis == 0 ? new_rc.first = 0 : new_rc.second = 0;

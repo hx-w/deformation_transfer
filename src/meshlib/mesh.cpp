@@ -10,6 +10,8 @@
 namespace MeshLib {
 using namespace std;
 
+using TEdge = pair<int, int>;
+
 Mesh::Mesh(const string& filename) {
     load(filename);
 }
@@ -41,7 +43,7 @@ bool Mesh::__load_obj(const string& filename) {
             _verts.emplace_back(DimXd{x, y, z});
         } else if (line[0] == 'f') {
             vector<string> words;
-            __split_words(line, words, ' ');
+            split_words(line, words, ' ');
             DimXi _f{};
             for (auto i = 1; i < words.size(); ++i) {
                 int idx = 0;
@@ -60,7 +62,7 @@ bool Mesh::__load_obj(const string& filename) {
     return true;
 }
 
-void Mesh::__split_words(const string& line, vector<string>& words, const char delim) {
+void Mesh::split_words(const string& line, vector<string>& words, const char delim) {
     stringstream ss(line);
     string word = "";
     while (getline(ss, word, delim)) {
@@ -111,9 +113,6 @@ void Mesh::get_inv_hat(vector<MatrixXd>& inv_hat_list) const {
     // for each triangle, V = [v2 - v1, v3 - v1, v4 - v1]
     // V^hat-1 = C * V^{-1}
     for (auto i = 0; i < m_faces.rows(); ++i) {
-        if (i % 5 == 0) {
-            cout << "processing rate " << i * 1.0 / m_faces.rows() << endl;
-        }
         auto v1 = m_vertices.row(m_faces.at(i, 0));
         auto v2 = m_vertices.row(m_faces.at(i, 1));
         auto v3 = m_vertices.row(m_faces.at(i, 2));
@@ -139,7 +138,40 @@ void Mesh::get_inv_hat(vector<MatrixXd>& inv_hat_list) const {
 
         inv_hat_list.emplace_back(inv_hat_V);
     }
+}
 
+void Mesh::get_triangle_adj(vector<vector<int>>& adj_list) const {
+    if (m_faces.cols() != 3) {
+        return;
+    }
+    adj_list.clear();
+    adj_list.resize(m_faces.rows());
+
+    // edge to triangle idx
+    map<TEdge, vector<int>> edge_to_tri;
+
+    for (auto i = 0; i < m_faces.rows(); ++i) {
+        // sort triangle vertices idx
+        vector<int> _tri{m_faces.at(i, 0), m_faces.at(i, 1), m_faces.at(i, 2)};
+        sort(_tri.begin(), _tri.end());
+
+        auto e1 = make_pair(_tri[0], _tri[1]);
+        auto e2 = make_pair(_tri[0], _tri[2]);
+        auto e3 = make_pair(_tri[1], _tri[2]);
+
+        edge_to_tri[e1].emplace_back(i);
+        edge_to_tri[e2].emplace_back(i);
+        edge_to_tri[e3].emplace_back(i);
+    }
+
+    for (auto& [edge, tri_idx_list] : edge_to_tri) {
+        // if size > 2, geometry is not a manifold,
+        // if size == 1, it is a boundary edge, ignore it
+        if (tri_idx_list.size() == 2) {
+            adj_list[tri_idx_list[0]].emplace_back(tri_idx_list[1]);
+            adj_list[tri_idx_list[1]].emplace_back(tri_idx_list[0]);
+        }
+    }
 }
 
 
