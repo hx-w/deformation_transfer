@@ -13,14 +13,14 @@ void compute_correspondence(
     Mesh& src_mesh, Mesh& tgt_mesh,
     const MatrixXi& markers, MatrixXi& mappings
 ) {
+    vector<vector<int>> face_adj_list;
+    src_mesh.get_triangle_adj(face_adj_list);
+
     // to 4d
     src_mesh.to_4d();
     tgt_mesh.to_4d();
 
-    auto face_adj_list = vector<vector<int>>();
-    src_mesh.get_triangle_adj(face_adj_list);
-
-    auto inv_hat_list = vector<MatrixXd>();
+    vector<MatrixXd> inv_hat_list;
     src_mesh.get_inv_hat(inv_hat_list);
 
     MatrixXd AEi, Bi, AEs, Bs, AEc, Bc;
@@ -43,7 +43,6 @@ void construct_indentity_cost(
     }
     cout << "AEi: " << AEi.rows() << " " << AEi.cols() << endl;
     cout << "Bi: " << Bi.rows() << " " << Bi.cols() << endl;
-    AEi.transpose() * AEi;
 }
 
 
@@ -52,7 +51,19 @@ void construct_smoothness_cost(
     const vector<vector<int>>& face_adj_list,
     MatrixXd& AEs, MatrixXd& Bs
 ) {
+    AEs = MatrixXd(0, inv_hat_V[0].rows());
 
+    for (auto i = 0; i < inv_hat_V.size(); ++i) {
+        auto adj_faces = face_adj_list[i];
+        for (const auto& j : adj_faces) {
+            if (i == j) continue;
+            auto diff = inv_hat_V[i] - inv_hat_V[j];
+            AEs.append(diff.transpose(), 0);
+        }
+    }
+    Bs = MatrixXd(AEs.rows(), 3);
+    cout << "AEs: " << AEs.rows() << " " << AEs.cols() << endl;
+    cout << "Bs: " << Bs.rows() << " " << Bs.cols() << endl;
 }
 
 
