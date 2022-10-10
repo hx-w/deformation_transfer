@@ -144,9 +144,10 @@ void Mesh::get_inv_hat(vector<MatrixXd>& inv_hat_list) const {
         auto V = concact_matrices({
             (v2 - v1).to_matrix(),
             (v3 - v1).to_matrix(),
-            (v4 - v1).to_matrix(),
+            v4.to_matrix(),
         }, 1);
-        auto inv_V = V.inverse();
+        auto inv_V = V.inverse().transpose();
+
         // compute sum of each row of inv_V
         vector<double> _sum_cols{};
         for (auto j = 0; j < 3; ++j) {

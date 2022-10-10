@@ -7,7 +7,7 @@
 namespace MeshLib {
 using namespace std;
 
-Solver::Solver(const MatrixXd& A) : _A(A) {
+Solver::Solver(const SpMatrixXd& A) : _A(A) {
     __lu_decompose();
 }
 
@@ -17,21 +17,21 @@ Solver::Solver(const MatrixXd& A) : _A(A) {
  * x: shape(n, k)
  * b: shape(m, k)
  */
-void Solver::solve(const MatrixXd& b, MatrixXd& x) {
+void Solver::solve(const SpMatrixXd& b, SpMatrixXd& x) {
     // solve Ly = b
-    auto y = MatrixXd(b.rows(), b.cols());
+    auto y = SpMatrixXd(b.rows(), b.cols());
     for (auto i = 0; i < b.rows(); ++i) {
         for (auto j = 0; j < b.cols(); ++j) {
             auto sum = 0.0;
             for (auto k = 0; k < i; ++k) {
                 sum += _L(i, k) * y(k, j);
             }
-            y(i, j) = (b(i, j) - sum) / _L(i, i);
+            y(i, j) = (b.at(i, j) - sum) / _L(i, i);
      
         }
     }
     // solve Ux = y
-    x = MatrixXd(b.rows(), b.cols());
+    x = SpMatrixXd(b.rows(), b.cols());
     for (int i = b.rows() - 1; i >= 0; --i) { // i must be int
         for (auto j = 0; j < b.cols(); ++j) {
             auto sum = 0.0;
@@ -45,41 +45,10 @@ void Solver::solve(const MatrixXd& b, MatrixXd& x) {
 
 void Solver::__lu_decompose() {
     auto n = _A.rows();
-    _L = MatrixXd(n, n);
-    _U = MatrixXd(n, n);
-    // LU decomposition
-    for (auto i = 0; i < n; ++i) {
-        for (auto j = 0; j < n; ++j) {
-            _U(i, j) = _A(i, j);
-            for (auto k = 0; k < i; ++k) {
-                _U(i, j) -= _L(i, k) * _U(k, j);
-            }
-        }
-        for (auto j = i; j < n; ++j) {
-            _L(j, i) = _A(j, i);
-            for (auto k = 0; k < i; ++k) {
-                _L(j, i) -= _L(j, k) * _U(k, i);
-            }
-            _L(j, i) /= _U(i, i);
-        }
-    }
+    _L = SpMatrixXd(n, n);
+    _U = SpMatrixXd(n, n);
 
-    // show L and U
-    // cout << "L:" << endl;
-    // for (auto i = 0; i < n; ++i) {
-    //     for (auto j = 0; j < n; ++j) {
-    //         cout << _L(i, j) << " ";
-    //     }
-    //     cout << endl;
-    // }
-
-    // cout << "U:" << endl;
-    // for (auto i = 0; i < n; ++i) {
-    //     for (auto j = 0; j < n; ++j) {
-    //         cout << _U(i, j) << " ";
-    //     }
-    //     cout << endl;
-    // }
+    _A.LU_decompose(_L, _U);
 }
 
 }

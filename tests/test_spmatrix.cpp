@@ -1,4 +1,4 @@
-#include "../src/meshlib/spmatrix.hpp"
+#include "../src/meshlib/matrix_proxy.hpp"
 
 #include <iostream>
 
@@ -39,7 +39,28 @@ int main() {
     cout << spm_inv(0, 0) << " " << spm_inv(0, 1) << endl;
     cout << spm_inv(1, 0) << " " << spm_inv(1, 1) << endl;
 
+    // LU decompose
+    SpMatrixXd A(3, 3);
+    A(0, 0) = 1, A(0, 1) = 2, A(0, 2) = 3;
+    A(1, 0) = 2, A(1, 1) = 5, A(1, 2) = 7;
+    A(2, 0) = 3, A(2, 1) = 5, A(2, 2) = 3;
+    SpMatrixXd L, U;
+    A.LU_decompose(L, U);
+    cout << "L: " << endl;
+    cout << L.at(0, 0) << " " << L.at(0, 1) << " " << L.at(0, 2) << endl;
+    cout << L.at(1, 0) << " " << L.at(1, 1) << " " << L.at(1, 2) << endl;
+    cout << L.at(2, 0) << " " << L.at(2, 1) << " " << L.at(2, 2) << endl;
+    cout << "U: " << endl;
+    cout << U.at(0, 0) << " " << U.at(0, 1) << " " << U.at(0, 2) << endl;
+    cout << U.at(1, 0) << " " << U.at(1, 1) << " " << U.at(1, 2) << endl;
+    cout << U.at(2, 0) << " " << U.at(2, 1) << " " << U.at(2, 2) << endl;
 
+
+    auto r = L * U;
+    cout << "R: " << endl;
+    cout << r.at(0, 0) << " " << r.at(0, 1) << " " << r.at(0, 2) << endl;
+    cout << r.at(1, 0) << " " << r.at(1, 1) << " " << r.at(1, 2) << endl;
+    cout << r.at(2, 0) << " " << r.at(2, 1) << " " << r.at(2, 2) << endl;
 
     return 0;
 }

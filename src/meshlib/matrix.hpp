@@ -7,7 +7,6 @@
 #include <cassert>
 #include <cmath>
 #include <algorithm>
-#include <omp.h>
 #include <iostream>
 
 namespace MeshLib {
@@ -15,8 +14,6 @@ template <class T> class Vector;
 template <class T> class Matrix;
 
 // using TKey = std::pair<size_t, size_t>;
-using MatrixXd = Matrix<double>;
-using MatrixXi = Matrix<size_t>;
 using VectorXd = Vector<double>;
 using VectorXi = Vector<int>;
 
@@ -132,7 +129,7 @@ public:
     // normalize
     Vector<T> normalize() const {
         Vector<T> r(*this);
-        r /= r.norm();
+        r /= std::sqrt(r.norm());
         return r;
     }
 

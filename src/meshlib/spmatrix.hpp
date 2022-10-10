@@ -36,6 +36,7 @@ public:
 
 
 // csr format
+// Compressed Sparse Row matrix
 template <class T>
 class SparseMatrix {
 public:
@@ -117,14 +118,15 @@ public:
             }
         }
 
-        // not found
-        m_col_ind.emplace_back(col);
-        m_values.emplace_back(static_cast<T>(0));
+        // not found,
+        // insert a new element of CSR format
+        m_col_ind.emplace(m_col_ind.begin() + end, col);
+        m_values.emplace(m_values.begin() + end, 0);
         for (auto i = row + 1; i < m_row_ind.size(); ++i) {
             m_row_ind[i] += 1;
         }
 
-        return m_values.back();
+        return m_values[end];
     }
 
     // get the value at (row, col)
@@ -192,7 +194,6 @@ public:
         SparseMatrix result(m_rows, other.m_cols);
 
         for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
-            std::cout << i << "/" << m_row_ind.size() - 1 << std::endl;
             int start = m_row_ind[i];
             int end = m_row_ind[i + 1];
             for (auto j = start; j < end; ++j) {
@@ -335,7 +336,6 @@ public:
         SparseMatrix result(m_rows, m_cols);
         
         T det = determinant();
-        std::cout << "det: " << det << std::endl;
         assert(det != 0);
 
         for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
@@ -346,6 +346,51 @@ public:
             }
         }
         return result;
+    }
+
+    // LU decompose
+    void LU_decompose(SparseMatrix &L, SparseMatrix &U) const {
+        assert(m_rows == m_cols);
+
+        // L = SparseMatrix::identity(m_rows);
+        L = SparseMatrix(m_rows, m_cols);
+        U = SparseMatrix(m_rows, m_cols);
+        
+        for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
+            int start = m_row_ind[i];
+            int end = m_row_ind[i + 1];
+            for (auto j = start; j < end; ++j) {
+                if (m_col_ind[j] < i) {
+                    T sum = 0;
+                    for (auto k = m_row_ind[m_col_ind[j]]; k < m_row_ind[m_col_ind[j] + 1]; ++k) {
+                        if (m_col_ind[k] < m_col_ind[j]) {
+                            sum += L.at(i, m_col_ind[k]) * U.at(m_col_ind[k], m_col_ind[j]);
+                        }
+                    }
+                    L(i, m_col_ind[j]) = (m_values[j] - sum) / U.at(m_col_ind[j], m_col_ind[j]);
+                } else {
+                    T sum = 0;
+                    for (auto k = m_row_ind[i]; k < m_row_ind[i + 1]; ++k) {
+                        if (m_col_ind[k] < i) {
+                            sum += L.at(i, m_col_ind[k]) * U.at(m_col_ind[k], m_col_ind[j]);
+                        }
+                    }
+                    U(i, m_col_ind[j]) = m_values[j] - sum;
+                }
+            }
+        }
+        // diagonal of L is 1
+        for (auto i = 0; i < m_rows; ++i) {
+            L(i, i) = static_cast<T>(1);
+        }
+    }
+
+    static SparseMatrix identity(int n) {
+        std::vector<Triplet<T>> triplets;
+        for (auto i = 0; i < n; ++i) {
+            triplets.emplace_back(i, i, 1);
+        }
+        return SparseMatrix(n, n, triplets);
     }
 
 private:

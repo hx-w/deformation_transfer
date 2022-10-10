@@ -6,6 +6,12 @@
 
 namespace MeshLib {
 
+using MatrixXd = Matrix<double>;
+using MatrixXi = Matrix<size_t>;
+using SpMatrixXd = SparseMatrix<double>;
+using SpMatrixXi = SparseMatrix<size_t>;
+
+
 template <class T>
 void to_sparse(const Matrix<T>& mat, SparseMatrix<T>& spmat) {
     spmat.resize(mat.rows(), mat.cols());
@@ -18,8 +24,8 @@ void to_sparse(const Matrix<T>& mat, SparseMatrix<T>& spmat) {
             _val
         });
     }
-    std::cout << "trip_list size: " << trip_list.size() << std::endl;
     spmat = SparseMatrix<T>(mat.rows(), mat.cols(), trip_list);
+    std::cout << "to_sparse finished" << std::endl;
 }
 
 

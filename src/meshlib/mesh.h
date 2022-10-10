@@ -3,7 +3,7 @@
 #define MESH_H
 
 #include <string>
-#include "matrix.hpp"
+#include "matrix_proxy.hpp"
 
 namespace MeshLib {
 

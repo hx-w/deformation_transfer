@@ -58,14 +58,14 @@ void compute_correspondence(
     in_time_t = chrono::system_clock::to_time_t(now);
     cout << "end multi: " << ctime(&in_time_t);
 
-    // auto LU = Solver(AtA);
+    auto LU = Solver(AtA);
     // print time now: %H:%M:%S
     now = chrono::system_clock::now();
     in_time_t = chrono::system_clock::to_time_t(now);
     cout << "end LU: " << ctime(&in_time_t);
 
-    MatrixXd X;
-    // LU.solve(AE.transpose() * Bs, X);
+    SpMatrixXd X;
+    // LU.solve(sp_AE.transpose() * to_sparse(Bs), X);
 
     // print time now: %H:%M:%S
     now = chrono::system_clock::now();
@@ -149,8 +149,8 @@ void apply_markers(MatrixXd& AE, MatrixXd& B, Mesh& tgt_mesh, const MatrixXi& ma
 
     cout << "source unmarked: " << src_unmarked.size() << endl;
 
-    auto AEu = AE.slice(src_unmarked, 1);
     auto AEm = AE.slice(src_marked, 1);
+    AE = AE.slice(src_unmarked, 1);
 
     auto Xm = tgt_mesh.vertices().slice(tgt_marked, 0);
 
