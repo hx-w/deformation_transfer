@@ -28,6 +28,11 @@ void to_sparse(const Matrix<T>& mat, SparseMatrix<T>& spmat) {
     std::cout << "to_sparse finished" << std::endl;
 }
 
+template <class T>
+void to_dense(const SparseMatrix<T>& spmat, Matrix<T>& mat) {
+    spmat.to_dense(mat);
+    std::cout << "to_dense finished" << std::endl;
+}
 
 }
 

@@ -62,5 +62,30 @@ int main() {
     cout << r.at(1, 0) << " " << r.at(1, 1) << " " << r.at(1, 2) << endl;
     cout << r.at(2, 0) << " " << r.at(2, 1) << " " << r.at(2, 2) << endl;
 
+    // solve
+    auto b = SpMatrixXd::identity(3);
+    SpMatrixXd x;
+    cout << "solve: " << endl;
+    A.solve(b, x);
+    cout << "X: " << endl;
+    cout << x.at(0, 0) << " " << x.at(0, 1) << " " << x.at(0, 2) << endl;
+    cout << x.at(1, 0) << " " << x.at(1, 1) << " " << x.at(1, 2) << endl;
+    cout << x.at(2, 0) << " " << x.at(2, 1) << " " << x.at(2, 2) << endl;
+
+    auto inv = A.inverse();
+    cout << "INV: " << endl;
+    cout << inv.at(0, 0) << " " << inv.at(0, 1) << " " << inv.at(0, 2) << endl;
+    cout << inv.at(1, 0) << " " << inv.at(1, 1) << " " << inv.at(1, 2) << endl;
+    cout << inv.at(2, 0) << " " << inv.at(2, 1) << " " << inv.at(2, 2) << endl;
+
+    // test save/load
+    inv.save("A.obj");
+    SpMatrixXd A2;
+    A2.load("A.obj");
+    cout << "A2: " << endl;
+    cout << A2.at(0, 0) << " " << A2.at(0, 1) << " " << A2.at(0, 2) << endl;
+    cout << A2.at(1, 0) << " " << A2.at(1, 1) << " " << A2.at(1, 2) << endl;
+    cout << A2.at(2, 0) << " " << A2.at(2, 1) << " " << A2.at(2, 2) << endl;
+
     return 0;
 }

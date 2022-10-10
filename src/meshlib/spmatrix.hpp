@@ -11,6 +11,9 @@
 #include <cmath>
 #include <cassert>
 #include <iostream>
+#include <fstream>
+#include <string>
+#include "matrix.hpp"
 
 namespace MeshLib {
 
@@ -104,6 +107,75 @@ public:
 
     int rows() const { return m_rows; }
     int cols() const { return m_cols; }
+
+    void to_dense(Matrix<T> &mat) const {
+        mat = Matrix<T>(m_rows, m_cols);
+        for (auto i = 0; i < m_rows; ++i) {
+            for (auto j = m_row_ind[i]; j < m_row_ind[i + 1]; ++j) {
+                mat(i, m_col_ind[j]) = m_values[j];
+            }
+        }
+    }
+
+    // save to file, in binary format
+    void save(const std::string &filename) const {
+        std::ofstream fout(filename, std::ios::binary);
+        fout.write((char *)&m_rows, sizeof(int));
+        fout.write((char *)&m_cols, sizeof(int));
+        int nnz = m_values.size();
+        fout.write((char *)&nnz, sizeof(int));
+        fout.write((char *)m_row_ind.data(), sizeof(int) * (m_rows + 1));
+        fout.write((char *)m_col_ind.data(), sizeof(int) * nnz);
+        fout.write((char *)m_values.data(), sizeof(T) * nnz);
+        fout.close();
+    }
+
+    // load from file
+    void load(const std::string &filename) {
+        std::ifstream fin(filename, std::ios::binary);
+        fin.read((char *)&m_rows, sizeof(int));
+        fin.read((char *)&m_cols, sizeof(int));
+        int nnz;
+        fin.read((char *)&nnz, sizeof(int));
+        m_row_ind.resize(m_rows + 1);
+        m_col_ind.resize(nnz);
+        m_values.resize(nnz);
+        fin.read((char *)m_row_ind.data(), sizeof(int) * (m_rows + 1));
+        fin.read((char *)m_col_ind.data(), sizeof(int) * nnz);
+
+        fin.read((char *)m_values.data(), sizeof(T) * nnz);
+        fin.close();
+    }
+
+    // save to txt
+    void save_txt(const std::string &filename) const {
+        std::ofstream fout(filename);
+        fout << m_rows << " " << m_cols << std::endl;
+        for (auto i = 0; i < m_rows; ++i) {
+            for (auto j = m_row_ind[i]; j < m_row_ind[i + 1]; ++j) {
+                fout << i << " " << m_col_ind[j] << " " << m_values[j] << std::endl;
+            }
+        }
+        fout.close();
+    }
+
+    // load from txt
+    void load_txt(const std::string &filename) {
+        std::ifstream fin(filename);
+        fin >> m_rows >> m_cols;
+        m_row_ind.resize(m_rows + 1);
+        m_row_ind[0] = 0;
+        int row, col;
+        T value;
+        while (fin >> row >> col >> value) {
+            m_col_ind.emplace_back(col);
+            m_values.emplace_back(value);
+            if (m_col_ind.size() == m_row_ind[m_row_ind.size() - 1] + 1) {
+                m_row_ind.emplace_back(m_col_ind.size());
+            }
+        }
+        fin.close();
+    }
 
     // get the value at (row, col)
     T& operator()(int row, int col) {
@@ -355,34 +427,90 @@ public:
         // L = SparseMatrix::identity(m_rows);
         L = SparseMatrix(m_rows, m_cols);
         U = SparseMatrix(m_rows, m_cols);
+
+        // sparse csr matrix LU decompose
+        // L is lower triangular matrix
+        // U is upper triangular matrix
+        // L * U = A
         
         for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
-            int start = m_row_ind[i];
-            int end = m_row_ind[i + 1];
-            for (auto j = start; j < end; ++j) {
-                if (m_col_ind[j] < i) {
+            L(i, i) = 1;
+        }
+
+        for (auto i = 0; i < m_rows; ++i) {
+            std::cout << i << "/" << m_rows << std::endl;
+            for (auto j = 0; j < m_cols; ++j) {
+                if (j < i) {
                     T sum = 0;
-                    for (auto k = m_row_ind[m_col_ind[j]]; k < m_row_ind[m_col_ind[j] + 1]; ++k) {
-                        if (m_col_ind[k] < m_col_ind[j]) {
-                            sum += L.at(i, m_col_ind[k]) * U.at(m_col_ind[k], m_col_ind[j]);
-                        }
+                    for (auto k = 0; k < j; ++k) {
+                        sum += L.at(i, k) * U.at(k, j);
                     }
-                    L(i, m_col_ind[j]) = (m_values[j] - sum) / U.at(m_col_ind[j], m_col_ind[j]);
+                    L(i, j) = (at(i, j) - sum) / U.at(j, j);
                 } else {
                     T sum = 0;
-                    for (auto k = m_row_ind[i]; k < m_row_ind[i + 1]; ++k) {
-                        if (m_col_ind[k] < i) {
-                            sum += L.at(i, m_col_ind[k]) * U.at(m_col_ind[k], m_col_ind[j]);
-                        }
+                    for (auto k = 0; k < i; ++k) {
+                        sum += L.at(i, k) * U.at(k, j);
                     }
-                    U(i, m_col_ind[j]) = m_values[j] - sum;
+                    U(i, j) = at(i, j) - sum;
                 }
             }
         }
-        // diagonal of L is 1
-        for (auto i = 0; i < m_rows; ++i) {
-            L(i, i) = static_cast<T>(1);
+    }
+
+    // solve Ax = b by LU decompose
+    // A shape(m, m)
+    // b shape(m, k)
+    void solve(const SparseMatrix<T>& b, SparseMatrix<T>& x) {
+        assert(m_rows == m_cols);
+        assert(m_rows == b.m_rows);
+
+        SparseMatrix L, U;
+        LU_decompose(L, U);
+
+        L.save(".cache/LU_decompose_L.mat");
+        U.save(".cache/LU_decompose_U.mat");
+
+        auto fn = [](const SparseMatrix<T>& m, int n) {
+            std::cout << "m shape: " << m.m_rows << " " << m.m_cols << std::endl;
+            for (auto i = 0; i < n; ++i) {
+                for (auto j = 0; j < n; ++j) {
+                    std::cout << m.at(i, j) << " ";
+                }
+                std::cout << std::endl;
+            }
+        };
+
+        fn(*this, 3);
+        return;
+
+        // Ly = b
+        SparseMatrix y(b.m_rows, b.m_cols);
+        for (auto i = 0; i < b.m_rows; ++i) {
+            int start = b.m_row_ind[i];
+            int end = b.m_row_ind[i + 1];
+            for (auto j = start; j < end; ++j) {
+                T sum = 0;
+                for (auto k = L.m_row_ind[i]; k < L.m_row_ind[i + 1]; ++k) {
+                    sum += L.at(i, L.m_col_ind[k]) * y.at(L.m_col_ind[k], b.m_col_ind[j]);
+                }
+                y(i, b.m_col_ind[j]) = b.at(i, b.m_col_ind[j]) - sum;
+            }
         }
+
+        // Ux = y
+        x = SparseMatrix(b.m_rows, b.m_cols);
+        for (int i = b.m_row_ind.size() - 2; i >= 0; --i) {
+            int start = b.m_row_ind[i];
+            int end = b.m_row_ind[i + 1];
+            for (auto j = start; j < end; ++j) {
+                T sum = 0;
+                for (auto k = U.m_row_ind[i]; k < U.m_row_ind[i + 1]; ++k) {
+                    sum += U.at(i, U.m_col_ind[k]) * x.at(U.m_col_ind[k], b.m_col_ind[j]);
+                }
+                x(i, b.m_col_ind[j]) = (y.at(i, b.m_col_ind[j]) - sum) / U.at(i, i);
+            }
+        }
+
     }
 
     static SparseMatrix identity(int n) {
@@ -391,6 +519,78 @@ public:
             triplets.emplace_back(i, i, 1);
         }
         return SparseMatrix(n, n, triplets);
+    }
+
+    // slice
+    SparseMatrix slice(int row_start, int row_end, int col_start, int col_end) const {
+        assert(row_start >= 0);
+        assert(row_end <= m_rows);
+        assert(col_start >= 0);
+        assert(col_end <= m_cols);
+        assert(row_start < row_end);
+        assert(col_start < col_end);
+
+        std::vector<Triplet<T>> triplets;
+        for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
+            if (i < row_start || i >= row_end) {
+                continue;
+            }
+            int start = m_row_ind[i];
+            int end = m_row_ind[i + 1];
+            for (auto j = start; j < end; ++j) {
+                if (m_col_ind[j] < col_start || m_col_ind[j] >= col_end) {
+                    continue;
+                }
+                triplets.emplace_back(i - row_start, m_col_ind[j] - col_start, m_values[j]);
+            }
+        }
+        return SparseMatrix(row_end - row_start, col_end - col_start, triplets);
+    }
+
+    // slice with indices, axis = 1 for column, axis = 0 for row
+    SparseMatrix slice(const std::vector<size_t>& indices, size_t axis) const {
+        assert(axis == 0 || axis == 1);
+        if (axis == 0) {
+            assert(indices.size() <= m_rows);
+            std::vector<Triplet<T>> triplets;
+            for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
+                if (std::find(indices.begin(), indices.end(), i) == indices.end()) {
+                    continue;
+                }
+                int start = m_row_ind[i];
+                int end = m_row_ind[i + 1];
+                for (auto j = start; j < end; ++j) {
+                    triplets.emplace_back(i, m_col_ind[j], m_values[j]);
+                }
+            }
+            return SparseMatrix(indices.size(), m_cols, triplets);
+        } else {
+            assert(indices.size() <= m_cols);
+            std::vector<Triplet<T>> triplets;
+            for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
+                int start = m_row_ind[i];
+                int end = m_row_ind[i + 1];
+                for (auto j = start; j < end; ++j) {
+                    if (std::find(indices.begin(), indices.end(), m_col_ind[j]) == indices.end()) {
+                        continue;
+                    }
+                    triplets.emplace_back(i, m_col_ind[j], m_values[j]);
+                }
+            }
+            return SparseMatrix(m_rows, indices.size(), triplets);
+        }
+    }
+
+    Vector<T> to_vector() const {
+        Vector<T> result(m_rows * m_cols);
+        for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
+            int start = m_row_ind[i];
+            int end = m_row_ind[i + 1];
+            for (auto j = start; j < end; ++j) {
+                result(i * m_cols + m_col_ind[j]) = m_values[j];
+            }
+        }
+        return result;
     }
 
 private:

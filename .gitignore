@@ -3,6 +3,7 @@ Debug/
 Release/
 .vscode/
 DefTransfer
+.cache/
 # Prerequisites
 *.d
 

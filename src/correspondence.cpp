@@ -28,49 +28,81 @@ void compute_correspondence(
     src_mesh.to_4d();
     tgt_mesh.to_4d();
 
-    vector<MatrixXd> inv_hat_list;
-    src_mesh.get_inv_hat(inv_hat_list);
+    // if file find, load it
+    SpMatrixXd AtA, AtB;
+    if (ifstream(".cache/AtA.mat")) {
+        AtA.load(".cache/AtA.mat");
+        AtB.load(".cache/AtB.mat");
 
-    MatrixXd AEi, Bi, AEs, Bs, AEc, Bc;
+        cout << "load from cache" << endl;
+    }
+    else {
+        vector<MatrixXd> inv_hat_list;
+        src_mesh.get_inv_hat(inv_hat_list);
+    
+        MatrixXd AEi, Bi, AEs, Bs, AEc, Bc;
 
-    construct_indentity_cost(inv_hat_list, AEi, Bi);
-    construct_smoothness_cost(inv_hat_list, face_adj_list, AEs, Bs);
+        construct_indentity_cost(inv_hat_list, AEi, Bi);
+        construct_smoothness_cost(inv_hat_list, face_adj_list, AEs, Bs);
 
-    // substract markers from AE, B
-    apply_markers(AEi, Bi, tgt_mesh, markers);
-    apply_markers(AEs, Bs, tgt_mesh, markers);
+        // substract markers from AE, B
+        apply_markers(AEi, Bi, tgt_mesh, markers);
+        apply_markers(AEs, Bs, tgt_mesh, markers);
 
-    // ignore AEc
-    auto AE = concact_matrices({AEi * Wi, AEs * Ws}, 0);
-    cout << "AE: " << AE.rows() << " " << AE.cols() << endl;
+        // ignore AEc
+        auto AE = concact_matrices({AEi * Wi, AEs * Ws}, 0);
+        auto B = concact_matrices({Bi * Wi, Bs * Ws}, 0);
+        SpMatrixXd sp_AE, sp_B;
+        to_sparse(AE, sp_AE);
+        to_sparse(B, sp_B);
+        cout << "convert to sparse" << endl;
+
+        // print time now: %H:%M:%S
+        auto now = chrono::system_clock::now();
+        auto in_time_t = chrono::system_clock::to_time_t(now);
+        cout << "start multi: " << ctime(&in_time_t);
+
+        AtA = sp_AE.transpose() * sp_AE;
+
+        AtB = sp_AE.transpose() * sp_B;
+
+        AtA.save(".cache/AtA.mat");
+        AtB.save(".cache/AtB.mat");
+    }
+
+    SpMatrixXd sp_X;
+    AtA.solve(AtB, sp_X);
+
+    // // print time now: %H:%M:%S
+    // auto now = chrono::system_clock::now();
+    // auto in_time_t = chrono::system_clock::to_time_t(now);
+    // cout << "end solving: " << ctime(&in_time_t);
+    // sp_X.save(".cache/correspondence.mat");
+    // sp_X.save_txt(".cache/correspondence.txt");
+
+    // cout << "sp_x" << endl;
+    // for (int i = 0; i < 10; ++i) {
+    //     for (int j = 0; j < sp_X.cols(); ++j) {
+    //         cout << sp_X.at(i, j) << " ";
+    //     }
+    //     cout << endl;
+    // }
+
+    // revert markers
+    // MatrixXd X;
+    // to_dense(sp_X, X);
+    // MatrixXd X_revert;
+    // revert_markers(X, tgt_mesh, markers, X_revert);
 
     // print time now: %H:%M:%S
-    auto now = chrono::system_clock::now();
-    auto in_time_t = chrono::system_clock::to_time_t(now);
-    cout << "start multi: " << ctime(&in_time_t);
+    // now = chrono::system_clock::now();
+    // in_time_t = chrono::system_clock::to_time_t(now);
+    // cout << "end revert: " << ctime(&in_time_t);
 
-    auto sp_AE = SparseMatrix<double>();
-    to_sparse(AE, sp_AE);
-    auto AtA = sp_AE.transpose() * sp_AE;
-
-    // print time now: %H:%M:%S
-    now = chrono::system_clock::now();
-    in_time_t = chrono::system_clock::to_time_t(now);
-    cout << "end multi: " << ctime(&in_time_t);
-
-    auto LU = Solver(AtA);
-    // print time now: %H:%M:%S
-    now = chrono::system_clock::now();
-    in_time_t = chrono::system_clock::to_time_t(now);
-    cout << "end LU: " << ctime(&in_time_t);
-
-    SpMatrixXd X;
-    // LU.solve(sp_AE.transpose() * to_sparse(Bs), X);
-
-    // print time now: %H:%M:%S
-    now = chrono::system_clock::now();
-    in_time_t = chrono::system_clock::to_time_t(now);
-    cout << "end solving: " << ctime(&in_time_t);
+    // to 3d
+    // src_mesh.vertices() = X_revert;
+    // src_mesh.to_3d();
+    // src_mesh.save("test.obj");
 }
 
 
@@ -147,8 +179,6 @@ void apply_markers(MatrixXd& AE, MatrixXd& B, Mesh& tgt_mesh, const MatrixXi& ma
         }
     }
 
-    cout << "source unmarked: " << src_unmarked.size() << endl;
-
     auto AEm = AE.slice(src_marked, 1);
     AE = AE.slice(src_unmarked, 1);
 
@@ -162,11 +192,34 @@ void apply_markers(MatrixXd& AE, MatrixXd& B, Mesh& tgt_mesh, const MatrixXi& ma
 
 
 void revert_markers(
-    const MatrixXd& AE, 
     const MatrixXd& X,
     Mesh& tgt_mesh,
     const MatrixXi& markers,
-    MatrixXi& X_reverted
+    MatrixXd& X_reverted
 ) {
+    auto src_marked = markers.col(0).data();
+    auto tgt_marked = markers.col(1).data();
+    auto vdim = X.rows() + src_marked.size();
 
+    auto src_unmarked = vector<size_t>();
+    for (auto vi = 0; vi < vdim; ++vi) {
+        if (find(src_marked.begin(), src_marked.end(), vi) == src_marked.end()) {
+            src_unmarked.emplace_back(vi);
+        }
+    }
+
+    cout << "unmarked: " << src_unmarked.size() << " X.rows " << X.rows() << endl;
+    assert(src_unmarked.size() == X.rows());
+    X_reverted = MatrixXd(vdim, 3);
+    for (int i = 0; i < src_unmarked.size(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            X_reverted(src_unmarked[i], j) = X.at(i, j);
+        }
+    }
+
+    for (int i = 0; i < src_marked.size(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            X_reverted(src_marked[i], j) = tgt_mesh.vertices().at(tgt_marked[i], j);
+        }
+    }
 }
