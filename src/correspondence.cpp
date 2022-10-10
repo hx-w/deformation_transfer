@@ -8,6 +8,7 @@
 
 #include "correspondace.h"
 #include "meshlib/solver.h"
+#include "meshlib/matrix_proxy.hpp"
 
 using namespace std;
 using namespace MeshLib;
@@ -48,21 +49,23 @@ void compute_correspondence(
     auto in_time_t = chrono::system_clock::to_time_t(now);
     cout << "start multi: " << ctime(&in_time_t);
 
-    auto AtA = AE.transpose().mult(AE);
+    auto sp_AE = SparseMatrix<double>();
+    to_sparse(AE, sp_AE);
+    auto AtA = sp_AE.transpose() * sp_AE;
 
     // print time now: %H:%M:%S
     now = chrono::system_clock::now();
     in_time_t = chrono::system_clock::to_time_t(now);
     cout << "end multi: " << ctime(&in_time_t);
 
-    auto LU = Solver(AtA);
+    // auto LU = Solver(AtA);
     // print time now: %H:%M:%S
     now = chrono::system_clock::now();
     in_time_t = chrono::system_clock::to_time_t(now);
     cout << "end LU: " << ctime(&in_time_t);
 
     MatrixXd X;
-    LU.solve(AE.transpose() * Bs, X);
+    // LU.solve(AE.transpose() * Bs, X);
 
     // print time now: %H:%M:%S
     now = chrono::system_clock::now();

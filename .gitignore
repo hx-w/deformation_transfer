@@ -2,6 +2,7 @@ build/
 Debug/
 Release/
 .vscode/
+DefTransfer
 # Prerequisites
 *.d
 

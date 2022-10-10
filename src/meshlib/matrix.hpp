@@ -3,7 +3,6 @@
 #define MATRIX_HPP
 
 #include <map>
-#include <unordered_map>
 #include <vector>
 #include <cassert>
 #include <cmath>
@@ -44,20 +43,14 @@ struct TKey {
     size_t second;
 };
 
-struct _hash {
-    size_t operator()(const TKey& key) const {
-        return std::hash<size_t>()(key.first << 4) ^ std::hash<size_t>()(key.second);
-    }
-};
+// struct Triplet {
+//     Triplet(): row(0), col(0), val(0) {}
+//     Triplet(size_t r, size_t c, double v): row(r), col(c), val(v) {}
 
-struct Triplet {
-    Triplet(): row(0), col(0), val(0) {}
-    Triplet(size_t r, size_t c, double v): row(r), col(c), val(v) {}
-
-    size_t row;
-    size_t col;
-    double val;
-};
+//     size_t row;
+//     size_t col;
+//     double val;
+// };
 
 // n_dim vector class with math operators
 template <class T>
@@ -197,10 +190,7 @@ class Matrix {
 public:
     Matrix() : m_data() {}
 
-    Matrix(size_t rows, size_t cols) : m_rows(rows), m_cols(cols) {
-        // m_data is unordered_map, initilize with rows slots
-        m_data.reserve(rows);
-    }
+    Matrix(size_t rows, size_t cols) : m_rows(rows), m_cols(cols) {}
 
     Matrix(std::vector<std::vector<T>> data) : m_rows(data.size()), m_cols(data[0].size()) {
         for (auto i = 0; i < m_rows; ++i) {
@@ -278,6 +268,10 @@ public:
             _values.emplace_back(_v);
         }
         return _values;
+    }
+
+    decltype(auto) raw() const { 
+        return m_data;
     }
 
     void append_row(const Vector<T>& v) {
@@ -381,47 +375,33 @@ public:
         return result;
     }
 
-    Matrix mult(const Matrix& other) const {
-        assert(m_cols == other.m_rows);
-        Matrix result(m_rows, other.m_cols);
-        std::vector<Triplet> lhs_trips, rhs_trips;
+    // Matrix mult(const Matrix& other) const {
+    //     assert(m_cols == other.m_rows);
+    //     Matrix result(m_rows, other.m_cols);
+    //     std::vector<Triplet> lhs_trips, rhs_trips;
 
-        std::vector<omp_lock_t> locks(result.rows());
+    //     for (auto& [_key, _val] : m_data) {
+    //         auto i = _key.first, j = _key.second;
+    //         lhs_trips.emplace_back(Triplet{i, j, _val});
+    //     }
 
-        for (auto& [_key, _val] : m_data) {
-            auto i = _key.first, j = _key.second;
-            lhs_trips.emplace_back(Triplet{i, j, _val});
-            omp_init_lock(&locks[i]);
-        }
+    //     for (auto& [_key, _val] : other.m_data) {
+    //         auto i = _key.first, j = _key.second;
+    //         rhs_trips.emplace_back(Triplet{i, j, _val});
+    //     }
+    //     // sparse matrix multiplication
+    //     for (auto tl = 0; tl < lhs_trips.size(); ++tl) {
+    //         auto& lhs_trip = lhs_trips[tl];
+    //         auto i = lhs_trip.row, j = lhs_trip.col;
+    //         for (auto ti = 0; ti < rhs_trips.size(); ++ti) {
+    //             auto& trip = rhs_trips[ti];
+    //             auto p = trip.row, q = trip.col;
+    //             result(i, q) += lhs_trip.val * trip.val;
+    //         }
+    //     }
 
-        for (auto& [_key, _val] : other.m_data) {
-            auto i = _key.first, j = _key.second;
-            rhs_trips.emplace_back(Triplet{i, j, _val});
-        }
-        // sparse matrix multiplication
-// #pragma omp parallel for num_threads(2)
-        for (auto tl = 0; tl < lhs_trips.size(); ++tl) {
-        // for (auto& lhs_trip : lhs_trips) {
-            auto& lhs_trip = lhs_trips[tl];
-            if (tl % 100 == 0) {
-                std::cout << "progress: " << tl * 1.0 / m_data.size() << std::endl;
-            }
-            auto i = lhs_trip.row, j = lhs_trip.col;
-            // omp_set_lock(&locks[i]);
-            // std::cout << "lock " << i << std::endl;
-            for (auto ti = 0; ti < rhs_trips.size(); ++ti) {
-                auto& trip = rhs_trips[ti];
-                auto p = trip.row, q = trip.col;
-                result(i, q) += lhs_trip.val * trip.val;
-            }
-            // omp_unset_lock(&locks[i]);
-        }
-
-        for (auto& lock : locks) {
-            omp_destroy_lock(&lock);
-        }
-        return result;
-    }
+    //     return result;
+    // }
 
     // scalar multiplication
     Matrix operator*(const T& scalar) const {
@@ -544,7 +524,7 @@ public:
 private:
     size_t m_rows;
     size_t m_cols;
-    std::unordered_map<TKey, T, _hash> m_data;
+    std::map<TKey, T> m_data;
 };
 
 
