@@ -31,7 +31,7 @@ int main() {
     cout << im(2, 0) << " " << im(2, 1) << " " << im(2, 2) << endl;
 
     // test concatenate
-    auto I = Matrix<double>::indentity(3).slice(0, 3, 0, 2);
+    auto I = Matrix<double>::identity(3).slice(0, 3, 0, 2);
     cout << I.rows() << " " << I.cols() << endl;
 
     auto m2 = concact_matrices({m, I}, 1);

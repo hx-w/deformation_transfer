@@ -42,7 +42,7 @@ void compute_correspondence(
     
         MatrixXd AEi, Bi, AEs, Bs, AEc, Bc;
 
-        construct_indentity_cost(inv_hat_list, AEi, Bi);
+        construct_identity_cost(inv_hat_list, AEi, Bi);
         construct_smoothness_cost(inv_hat_list, face_adj_list, AEs, Bs);
 
         // substract markers from AE, B
@@ -70,52 +70,57 @@ void compute_correspondence(
         AtB.save(".cache/AtB.mat");
     }
 
+    if (AtA.is_diagonally_dominant()) {
+        cout << "diagonally dominant" << endl;
+    }
+    else {
+        cout << "not diagonally dominant" << endl;
+    }
+
+
     SpMatrixXd sp_X;
     AtA.solve(AtB, sp_X);
 
+    // 10 rows print
+    for (auto i = 0; i < 10; i++) {
+        cout << sp_X.at(i, 0) << " " << sp_X.at(i, 1) << " " << sp_X.at(i, 2)  << endl;
+    }
+
     // // print time now: %H:%M:%S
-    // auto now = chrono::system_clock::now();
-    // auto in_time_t = chrono::system_clock::to_time_t(now);
-    // cout << "end solving: " << ctime(&in_time_t);
-    // sp_X.save(".cache/correspondence.mat");
+    auto now = chrono::system_clock::now();
+    auto in_time_t = chrono::system_clock::to_time_t(now);
+    cout << "end solving: " << ctime(&in_time_t);
+    sp_X.save(".cache/correspondence.mat");
     // sp_X.save_txt(".cache/correspondence.txt");
 
-    // cout << "sp_x" << endl;
-    // for (int i = 0; i < 10; ++i) {
-    //     for (int j = 0; j < sp_X.cols(); ++j) {
-    //         cout << sp_X.at(i, j) << " ";
-    //     }
-    //     cout << endl;
-    // }
-
     // revert markers
-    // MatrixXd X;
-    // to_dense(sp_X, X);
-    // MatrixXd X_revert;
-    // revert_markers(X, tgt_mesh, markers, X_revert);
+    MatrixXd ds_X;
+    to_dense(sp_X, ds_X);
+    MatrixXd X_revert;
+    revert_markers(ds_X, tgt_mesh, markers, X_revert);
 
     // print time now: %H:%M:%S
-    // now = chrono::system_clock::now();
-    // in_time_t = chrono::system_clock::to_time_t(now);
-    // cout << "end revert: " << ctime(&in_time_t);
+    now = chrono::system_clock::now();
+    in_time_t = chrono::system_clock::to_time_t(now);
+    cout << "end revert: " << ctime(&in_time_t);
 
     // to 3d
-    // src_mesh.vertices() = X_revert;
-    // src_mesh.to_3d();
-    // src_mesh.save("test.obj");
+    src_mesh.vertices() = X_revert;
+    src_mesh.to_3d();
+    src_mesh.save("test.obj");
 }
 
 
-void construct_indentity_cost(
+void construct_identity_cost(
     const vector<MatrixXd>& inv_hat_V,
     MatrixXd& AEi, MatrixXd& Bi
 ) {
     // transpose each element in inv_hat_V, and concat along column
     AEi = inv_hat_V[0].transpose();
-    Bi = MatrixXd::indentity(3);
+    Bi = MatrixXd::identity(3);
     for (auto i = 1; i < inv_hat_V.size(); ++i) {
         AEi.append(inv_hat_V[i].transpose(), 0);
-        Bi.append(MatrixXd::indentity(3), 0);
+        Bi.append(MatrixXd::identity(3), 0);
     }
     cout << "AEi: " << AEi.rows() << " " << AEi.cols() << endl;
     cout << "Bi: " << Bi.rows() << " " << Bi.cols() << endl;

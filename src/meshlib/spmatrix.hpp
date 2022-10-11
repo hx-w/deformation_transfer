@@ -425,92 +425,168 @@ public:
         assert(m_rows == m_cols);
 
         // L = SparseMatrix::identity(m_rows);
-        L = SparseMatrix(m_rows, m_cols);
+        L = SparseMatrix::identity(m_rows);
         U = SparseMatrix(m_rows, m_cols);
 
         // sparse csr matrix LU decompose
         // L is lower triangular matrix
         // U is upper triangular matrix
         // L * U = A
-        
-        for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
-            L(i, i) = 1;
-        }
+    }
+
+    // Cholesky decompose
+    void Cholesky_decompose(SparseMatrix &L) const {
+        assert(m_rows == m_cols);
+        // sparse csr matrix Cholesky decompose
+        // L is lower triangular matrix
+        // L * L^T = A
+        // A is symmetric positive definite matrix
+        L = SparseMatrix::identity(m_rows);
 
         for (auto i = 0; i < m_rows; ++i) {
-            std::cout << i << "/" << m_rows << std::endl;
-            for (auto j = 0; j < m_cols; ++j) {
-                if (j < i) {
-                    T sum = 0;
-                    for (auto k = 0; k < j; ++k) {
-                        sum += L.at(i, k) * U.at(k, j);
-                    }
-                    L(i, j) = (at(i, j) - sum) / U.at(j, j);
-                } else {
-                    T sum = 0;
-                    for (auto k = 0; k < i; ++k) {
-                        sum += L.at(i, k) * U.at(k, j);
-                    }
-                    U(i, j) = at(i, j) - sum;
+            if (i % 3 == 0)
+            std::cout << i << " " << m_rows << " " << L.m_values.size() << std::endl;
+            for (auto j = 0; j < i; ++j) {
+                T sum = 0;
+                for (auto k = 0; k < j; ++k) {
+                    sum += L.at(i, k) * L.at(j, k);
+                }
+                auto _v = (at(i, j) - sum) / L.at(j, j);
+                if (std::abs(_v) > 1e-16) {
+                    L(i, j) = _v;
                 }
             }
+            T sum = 0;
+            for (auto k = 0; k < i; ++k) {
+                sum += std::pow(L.at(i, k), 2);
+            }
+            auto ii = std::sqrt(at(i, i) - sum);
+            L(i, i) = ii;
+            assert(std::isnan(ii) == false);
         }
     }
 
-    // solve Ax = b by LU decompose
+
     // A shape(m, m)
     // b shape(m, k)
     void solve(const SparseMatrix<T>& b, SparseMatrix<T>& x) {
         assert(m_rows == m_cols);
         assert(m_rows == b.m_rows);
 
-        SparseMatrix L, U;
-        LU_decompose(L, U);
+        // solve Ax=b, A is symmetric positive definite matrix
+        SparseMatrix L;
 
-        L.save(".cache/LU_decompose_L.mat");
-        U.save(".cache/LU_decompose_U.mat");
+        if (std::ifstream(".cache/Cholesky_decompose_L.mat")) {
+            L.load(".cache/Cholesky_decompose_L.mat");
+            std::cout << "load Cholesky_decompose_L.mat" << std::endl;
 
-        auto fn = [](const SparseMatrix<T>& m, int n) {
-            std::cout << "m shape: " << m.m_rows << " " << m.m_cols << std::endl;
-            for (auto i = 0; i < n; ++i) {
-                for (auto j = 0; j < n; ++j) {
-                    std::cout << m.at(i, j) << " ";
+            for (int r = 330; r < 340; r++) {
+                for (int c = 330; c < 340; c++) {
+                    std::cout << L.at(r, c) << " ";
                 }
                 std::cout << std::endl;
             }
-        };
+        } else {
+            Cholesky_decompose(L);
+            L.save(".cache/Cholesky_decompose_L.mat");
+        }
+        SparseMatrix Lt = L.transpose();
 
-        fn(*this, 3);
-        return;
+        // check if has nan in L
+        int _r = 0, _c = 0;
+        for (auto i = 0; i < L.m_row_ind.size() - 1; ++i) {
+            int start = L.m_row_ind[i];
+            int end = L.m_row_ind[i + 1];
+            for (auto j = start; j < end; ++j) {
+                if (std::isnan(L.m_values[j])) {
+                    _r = i, _c = L.m_col_ind[j];
+                    break;
+                }
+            }
+            if (_r != 0) {
+                break;
+            }
+        }
+        if (_r != 0) {
+            std::cout << "L has nan at " << _r << ", " << _c << std::endl;
+        }
 
-        // Ly = b
+
+        // solve Ly = b
         SparseMatrix y(b.m_rows, b.m_cols);
-        for (auto i = 0; i < b.m_rows; ++i) {
-            int start = b.m_row_ind[i];
-            int end = b.m_row_ind[i + 1];
-            for (auto j = start; j < end; ++j) {
+        for (int i = 0; i < b.m_rows; ++i) {
+            if (i % 500 == 0)
+            std::cout << "solve: " << i << "/" << b.m_rows << std::endl;
+            for (int j = 0; j < b.m_cols; ++j) {
                 T sum = 0;
-                for (auto k = L.m_row_ind[i]; k < L.m_row_ind[i + 1]; ++k) {
-                    sum += L.at(i, L.m_col_ind[k]) * y.at(L.m_col_ind[k], b.m_col_ind[j]);
+                for (int k = 0; k < i; ++k) {
+                    sum += L.at(i, k) * y.at(k, j);
                 }
-                y(i, b.m_col_ind[j]) = b.at(i, b.m_col_ind[j]) - sum;
+                y(i, j) = (b.at(i, j) - sum) / L.at(i, i);
             }
         }
 
-        // Ux = y
+        // solve L^Tx = y
         x = SparseMatrix(b.m_rows, b.m_cols);
-        for (int i = b.m_row_ind.size() - 2; i >= 0; --i) {
-            int start = b.m_row_ind[i];
-            int end = b.m_row_ind[i + 1];
-            for (auto j = start; j < end; ++j) {
+        for (int i = b.m_rows - 1; i >= 0; --i) {
+            if (i % 500 == 0)
+            std::cout << "solve2: " << i << "/" << b.m_rows << std::endl;
+            for (int j = 0; j < b.m_cols; ++j) {
                 T sum = 0;
-                for (auto k = U.m_row_ind[i]; k < U.m_row_ind[i + 1]; ++k) {
-                    sum += U.at(i, U.m_col_ind[k]) * x.at(U.m_col_ind[k], b.m_col_ind[j]);
+                for (int k = i + 1; k < b.m_rows; ++k) {
+                    sum += Lt.at(i, k) * x.at(k, j);
                 }
-                x(i, b.m_col_ind[j]) = (y.at(i, b.m_col_ind[j]) - sum) / U.at(i, i);
+                x(i, j) = (y.at(i, j) - sum) / Lt.at(i, i);
             }
         }
 
+    }
+
+    void solve_(const SparseMatrix<T>& b, SparseMatrix<T>& x) {
+        assert(m_rows == m_cols);
+        assert(m_rows == b.rows());
+
+        // Ax = b
+        // Jacobi iteration
+        const auto iter_num = 500;
+        x = SparseMatrix<T>(b.rows(), b.cols());
+
+        SparseMatrix D_inv(m_rows, m_cols);
+        SparseMatrix R(m_rows, m_cols);
+        for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
+            int start = m_row_ind[i];
+            int end = m_row_ind[i + 1];
+            for (auto j = start; j < end; ++j) {
+                if (m_col_ind[j] == i) {
+                    D_inv(i, i) = 1.0 / m_values[j];
+                }
+                else {
+                    R(i, m_col_ind[j]) = m_values[j];
+                }
+            }
+        }
+
+        for (auto i = 0; i < iter_num; ++i) {
+            x = D_inv * (b - R * x);
+        }
+        
+    }
+
+    bool is_diagonally_dominant() const {
+        for (auto i = 0; i < m_rows; ++i) {
+            T sum = 0;
+            int start = m_row_ind[i];
+            int end = m_row_ind[i + 1];
+            for (auto j = start; j < end; ++j) {
+                if (m_col_ind[j] != i) {
+                    sum += std::abs(m_values[j]);
+                }
+            }
+            if (std::abs(m_values[start]) < sum) {
+                return false;
+            }
+        }
+        return true;
     }
 
     static SparseMatrix identity(int n) {
@@ -519,6 +595,15 @@ public:
             triplets.emplace_back(i, i, 1);
         }
         return SparseMatrix(n, n, triplets);
+    }
+
+    // diagonal matrix
+    static SparseMatrix diagonal(const std::vector<T>& v) {
+        std::vector<Triplet<T>> triplets;
+        for (auto i = 0; i < v.size(); ++i) {
+            triplets.emplace_back(i, i, v[i]);
+        }
+        return SparseMatrix(v.size(), v.size(), triplets);
     }
 
     // slice

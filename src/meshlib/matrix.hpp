@@ -372,34 +372,6 @@ public:
         return result;
     }
 
-    // Matrix mult(const Matrix& other) const {
-    //     assert(m_cols == other.m_rows);
-    //     Matrix result(m_rows, other.m_cols);
-    //     std::vector<Triplet> lhs_trips, rhs_trips;
-
-    //     for (auto& [_key, _val] : m_data) {
-    //         auto i = _key.first, j = _key.second;
-    //         lhs_trips.emplace_back(Triplet{i, j, _val});
-    //     }
-
-    //     for (auto& [_key, _val] : other.m_data) {
-    //         auto i = _key.first, j = _key.second;
-    //         rhs_trips.emplace_back(Triplet{i, j, _val});
-    //     }
-    //     // sparse matrix multiplication
-    //     for (auto tl = 0; tl < lhs_trips.size(); ++tl) {
-    //         auto& lhs_trip = lhs_trips[tl];
-    //         auto i = lhs_trip.row, j = lhs_trip.col;
-    //         for (auto ti = 0; ti < rhs_trips.size(); ++ti) {
-    //             auto& trip = rhs_trips[ti];
-    //             auto p = trip.row, q = trip.col;
-    //             result(i, q) += lhs_trip.val * trip.val;
-    //         }
-    //     }
-
-    //     return result;
-    // }
-
     // scalar multiplication
     Matrix operator*(const T& scalar) const {
         Matrix result(m_rows, m_cols);
@@ -510,7 +482,7 @@ public:
         return Vector<T>(_);
     }
 
-    static decltype(auto) indentity(size_t size) {
+    static decltype(auto) identity(size_t size) {
         Matrix result(size, size);
         for (size_t i = 0; i < size; ++i) {
             result(i, i) = 1;

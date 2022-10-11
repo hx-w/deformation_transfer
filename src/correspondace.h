@@ -17,7 +17,7 @@ void compute_correspondence(
     MeshLib::MatrixXi& mappings
 );
 
-void construct_indentity_cost(
+void construct_identity_cost(
     // MeshLib::Mesh& mesh,
     const std::vector<MeshLib::MatrixXd>& inv_hat_V,
     MeshLib::MatrixXd& AEi,
