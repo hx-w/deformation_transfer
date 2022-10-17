@@ -265,14 +265,11 @@ public:
         assert(m_cols == other.m_rows);
         SparseMatrix result(m_rows, other.m_cols);
 
-        for (auto i = 0; i < m_row_ind.size() - 1; ++i) {
-            int start = m_row_ind[i];
-            int end = m_row_ind[i + 1];
-            for (auto j = start; j < end; ++j) {
-                int col = m_col_ind[j];
-                T value = m_values[j];
-                for (auto k = other.m_row_ind[col]; k < other.m_row_ind[col + 1]; ++k) {
-                    result(i, other.m_col_ind[k]) += value * other.m_values[k];
+        // CSR * CSR
+        for (auto i = 0; i < m_rows; ++i) {
+            for (auto j = m_row_ind[i]; j < m_row_ind[i + 1]; ++j) {
+                for (auto k = other.m_row_ind[m_col_ind[j]]; k < other.m_row_ind[m_col_ind[j] + 1]; ++k) {
+                    result(i, other.m_col_ind[k]) += m_values[j] * other.m_values[k];
                 }
             }
         }
@@ -441,29 +438,26 @@ public:
         // L is lower triangular matrix
         // L * L^T = A
         // A is symmetric positive definite matrix
-        L = SparseMatrix::identity(m_rows);
 
+        L = SparseMatrix::identity(m_rows);
         for (auto i = 0; i < m_rows; ++i) {
-            if (i % 3 == 0)
-            std::cout << i << " " << m_rows << " " << L.m_values.size() << std::endl;
-            for (auto j = 0; j < i; ++j) {
-                T sum = 0;
-                for (auto k = 0; k < j; ++k) {
-                    sum += L.at(i, k) * L.at(j, k);
-                }
-                auto _v = (at(i, j) - sum) / L.at(j, j);
-                if (std::abs(_v) > 1e-16) {
-                    L(i, j) = _v;
-                }
-            }
+            if (i % 5 == 0)
+                std::cout << "Cholesky decompose: " << i << "/" << m_rows << std::endl;
             T sum = 0;
             for (auto k = 0; k < i; ++k) {
                 sum += std::pow(L.at(i, k), 2);
             }
-            auto ii = std::sqrt(at(i, i) - sum);
-            L(i, i) = ii;
-            assert(std::isnan(ii) == false);
+            L(i, i) = std::sqrt(at(i, i) - sum);
+
+            for (auto j = i + 1; j < m_rows; ++j) {
+                T sum = 0;
+                for (auto k = 0; k < i; ++k) {
+                    sum += L.at(j, k) * L.at(i, k);
+                }
+                L(j, i) = (at(j, i) - sum) / L.at(i, i);
+            }
         }
+        std::cout << "Choelsky decomposed" << std::endl;
     }
 
 

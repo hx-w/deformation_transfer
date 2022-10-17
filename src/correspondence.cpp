@@ -34,37 +34,62 @@ void compute_correspondence(
         AtA.load(".cache/AtA.mat");
         AtB.load(".cache/AtB.mat");
 
-        cout << "load from cache" << endl;
+        cout << "load from cache: AtA" << endl;
     }
     else {
-        vector<MatrixXd> inv_hat_list;
-        src_mesh.get_inv_hat(inv_hat_list);
-    
-        MatrixXd AEi, Bi, AEs, Bs, AEc, Bc;
+        SpMatrixXd sp_AE, sp_B, sp_At;
+        if (ifstream(".cache/AE.mat")) {
+            sp_AE.load(".cache/AE.mat");
+            sp_B.load(".cache/B.mat");
+            sp_At.load(".cache/At.mat");
+            cout << "load from cache: AE" << endl;
+        }
+        else {
+            MatrixXd AEi, Bi, AEs, Bs, AEc, Bc;
 
-        construct_identity_cost(inv_hat_list, AEi, Bi);
-        construct_smoothness_cost(inv_hat_list, face_adj_list, AEs, Bs);
+            vector<MatrixXd> inv_hat_list;
+            src_mesh.get_inv_hat(inv_hat_list);
+        
 
-        // substract markers from AE, B
-        apply_markers(AEi, Bi, tgt_mesh, markers);
-        apply_markers(AEs, Bs, tgt_mesh, markers);
+            construct_identity_cost(inv_hat_list, AEi, Bi);
+            construct_smoothness_cost(inv_hat_list, face_adj_list, AEs, Bs);
 
-        // ignore AEc
-        auto AE = concact_matrices({AEi * Wi, AEs * Ws}, 0);
-        auto B = concact_matrices({Bi * Wi, Bs * Ws}, 0);
-        SpMatrixXd sp_AE, sp_B;
-        to_sparse(AE, sp_AE);
-        to_sparse(B, sp_B);
-        cout << "convert to sparse" << endl;
+            // substract markers from AE, B
+            apply_markers(AEi, Bi, tgt_mesh, markers);
+            apply_markers(AEs, Bs, tgt_mesh, markers);
+
+            // ignore AEc
+            auto AE = concact_matrices({AEi * Wi, AEs * Ws}, 0);
+            auto B = concact_matrices({Bi * Wi, Bs * Ws}, 0);
+            to_sparse(AE, sp_AE);
+            to_sparse(B, sp_B);
+            sp_AE.save(".cache/AE.mat");
+            sp_B.save(".cache/B.mat");
+
+            sp_At = sp_AE.transpose();
+            sp_At.save(".cache/At.mat");
+        }
+
+        auto print = [](auto& mat, auto& name) {
+            cout << name << ": " << mat.rows() << "x" << mat.cols() << endl;
+            for (auto r = 0; r < 10; ++r) {
+                for (auto c = 0; c < 10; ++c) {
+                    cout << mat.at(r, c) << " ";
+                }
+                cout << endl;
+            }
+        };
+        print(sp_AE, "AE");
+        cout << sp_AE.at(186844, 0) << endl;
 
         // print time now: %H:%M:%S
         auto now = chrono::system_clock::now();
         auto in_time_t = chrono::system_clock::to_time_t(now);
         cout << "start multi: " << ctime(&in_time_t);
 
-        AtA = sp_AE.transpose() * sp_AE;
+        AtA = sp_At * sp_AE;
 
-        AtB = sp_AE.transpose() * sp_B;
+        AtB = sp_At * sp_B;
 
         AtA.save(".cache/AtA.mat");
         AtB.save(".cache/AtB.mat");
@@ -77,6 +102,12 @@ void compute_correspondence(
         cout << "not diagonally dominant" << endl;
     }
 
+    for (int i  = 0; i < 10; ++i) {
+        for (int j = 0; j < 10; ++j) {
+            cout << AtA(i, j) << " ";
+        }
+        cout << endl;
+    }
 
     SpMatrixXd sp_X;
     AtA.solve(AtB, sp_X);

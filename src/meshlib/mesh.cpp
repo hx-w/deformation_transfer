@@ -189,12 +189,19 @@ void Mesh::get_triangle_adj(vector<vector<size_t>>& adj_list) const {
         edge_to_tri[e3].emplace_back(i);
     }
 
+    auto insert = [](auto& adj_list, auto key, auto val) {
+        auto it = find(adj_list[key].begin(), adj_list[key].end(), val);
+        if (it == adj_list[key].end()) {
+            adj_list[key].emplace_back(val);
+        }
+    };
+
     for (auto& [edge, tri_idx_list] : edge_to_tri) {
         // if size > 2, geometry is not a manifold,
         // if size == 1, it is a boundary edge, ignore it
         if (tri_idx_list.size() == 2) {
-            adj_list[tri_idx_list[0]].emplace_back(tri_idx_list[1]);
-            adj_list[tri_idx_list[1]].emplace_back(tri_idx_list[0]);
+            insert(adj_list, tri_idx_list[0], tri_idx_list[1]);
+            insert(adj_list, tri_idx_list[1], tri_idx_list[0]);
         }
     }
 }
